@@ -1,0 +1,109 @@
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), filter var(--transition-fast);
+    text-decoration: none;
+    width: 100%;
+    position: relative;
+    border-radius: var(--radius-full);
+}
+
+.button:active:not(:disabled) {
+    transform: translateY(6px);
+}
+
+.button:disabled {
+    cursor: not-allowed;
+    /* Removed opacity and grayscale to keep colors vibrant for kids like the mockup */
+}
+
+/* Sizes */
+.sm {
+    padding: 10px 20px;
+    font-size: 1rem;
+}
+
+.md {
+    padding: 16px 28px;
+    font-size: 1.25rem;
+    letter-spacing: 0.5px;
+}
+
+.lg {
+    padding: 20px 36px;
+    font-size: 1.5rem;
+    letter-spacing: 1px;
+}
+
+/* Variants */
+.primary {
+    background-color: var(--color-primary);
+    color: white;
+    box-shadow: 0 6px 0 var(--color-primary-dark);
+}
+
+.primary:active:not(:disabled) {
+    box-shadow: 0 0 0 var(--color-primary-dark);
+}
+
+.secondary {
+    background-color: var(--color-secondary);
+    color: var(--color-text);
+    box-shadow: 0 6px 0 var(--color-secondary-dark);
+}
+
+.secondary:active:not(:disabled) {
+    box-shadow: 0 0 0 var(--color-secondary-dark);
+}
+
+.success {
+    background-color: var(--color-success);
+    color: white;
+    box-shadow: 0 8px 0 var(--color-success-dark);
+}
+
+.success:active:not(:disabled) {
+    box-shadow: 0 0 0 var(--color-success-dark);
+    transform: translateY(8px);
+}
+
+.accent {
+    background-color: var(--color-accent);
+    color: white;
+    box-shadow: 0 6px 0 var(--color-accent-dark);
+}
+
+.accent:active:not(:disabled) {
+    box-shadow: 0 0 0 var(--color-accent-dark);
+}
+
+.blue {
+    background-color: var(--color-blue);
+    color: white;
+    box-shadow: 0 6px 0 var(--color-blue-dark);
+}
+
+.blue:active:not(:disabled) {
+    box-shadow: 0 0 0 var(--color-blue-dark);
+}
+
+.ghost {
+    background-color: transparent;
+    color: var(--color-blue);
+    box-shadow: none;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.ghost:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
+.ghost:hover {
+    filter: brightness(1.1);
+}

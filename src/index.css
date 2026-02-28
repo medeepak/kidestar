@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+:root {
+  /* Brand Colors from Mocks */
+  --color-primary: #38C6D4;
+  /* Splash Background Teal */
+  --color-primary-dark: #279CA9;
+
+  --color-secondary: #FFCE44;
+  /* Top/Confirm Yellow */
+  --color-secondary-dark: #DFA92A;
+
+  --color-success: #80C950;
+  /* Continue Green */
+  --color-success-dark: #63A33A;
+
+  --color-accent: #FF6B50;
+  /* Continue Orange */
+  --color-accent-dark: #D94A32;
+
+  --color-blue: #246DB6;
+  /* Buttons / Text blue */
+  --color-blue-dark: #194F86;
+
+  --color-text: #133857;
+  /* Dark Navy Text */
+  --color-bg: #E6F4F1;
+  /* Default soft background */
+  --color-surface: #FFFFFF;
+  /* White Surface */
+
+  /* Typography */
+  --font-heading: 'Fredoka', sans-serif;
+  --font-body: 'Fredoka', sans-serif;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Radius */
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 8px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 16px 24px rgba(0, 0, 0, 0.15);
+
+  /* Animation */
+  --transition-fast: 0.15s ease-out;
+  --transition-bounce: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+  overflow-x: hidden;
+  /* Prevent bounce scroll on iOS if needed, but allow for now */
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+button {
+  font-family: var(--font-heading);
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* Utilities */
+.container {
+  max-width: 480px;
+  /* Mobile safe width */
+  margin: 0 auto;
+  min-height: 100vh;
+  background-color: var(--color-surface);
+  position: relative;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.p-md {
+  padding: var(--spacing-md);
+}
+
+.gap-md {
+  gap: var(--spacing-md);
+}
+
+/* Animation Utility */
+.animate-bounce-in {
+  animation: bounceIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+@keyframes bounceIn {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
