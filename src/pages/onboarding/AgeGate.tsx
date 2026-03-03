@@ -8,7 +8,7 @@ export function AgeGate() {
 
     const handleSubmit = () => {
         if (agreed) {
-            navigate('/intro');
+            navigate('/login');
         }
     };
 

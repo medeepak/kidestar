@@ -1,13 +1,18 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
 
 export function SplashScreen() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Navigate to age-gate after 2.5 seconds
-        const timer = setTimeout(() => {
-            navigate('/age-gate');
+        const timer = setTimeout(async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                navigate('/home', { replace: true });
+            } else {
+                navigate('/age-gate');
+            }
         }, 2500);
         return () => clearTimeout(timer);
     }, [navigate]);

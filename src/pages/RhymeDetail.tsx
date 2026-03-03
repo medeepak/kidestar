@@ -1,198 +1,336 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
-import { Modal } from '../components/ui/Modal';
-import { PhotoUpload } from '../components/features/PhotoUpload';
-import { ArrowLeft, PlayCircle, Clock, Diamond, Share2, Download } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { avatarService } from '../services/avatarService';
+import { rhymeService } from '../services/rhymeService';
+import type { GenerationRecord } from '../services/rhymeService';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+
+// ─── Rhyme Catalog ──────────────────────────────────────────────────────────
+
+interface RhymeMeta {
+    id: string;
+    slug: string;
+    title: string;
+    description: string;
+    duration: string;
+    gems: number;
+    thumb: string;
+    emoji: string;
+}
+
+const RHYME_CATALOG: Record<string, RhymeMeta> = {
+    '1': { id: '1', slug: 'wheels-on-the-bus', title: 'Wheels on the Bus', description: 'The classic sing-along about a cheerful bus ride — starring YOUR child as the driver!', duration: '30s', gems: 30, thumb: '/rhymes/wheels.png', emoji: '🚌' },
+    '2': { id: '2', slug: 'johnny-johnny-yes-papa', title: 'Johnny Johnny Yes Papa', description: 'Will papa catch them eating sugar? Put YOUR child in the spotlight of this cheeky classic!', duration: '30s', gems: 30, thumb: '/rhymes/johnny.png', emoji: '🍬' },
+    '3': { id: '3', slug: 'baa-baa-black-sheep', title: 'Baa Baa Black Sheep', description: 'A woolly adventure with YOUR child as the little one who gets a bag of wool!', duration: '30s', gems: 30, thumb: '/rhymes/baa.png', emoji: '🐑' },
+};
+
+type GenStep = 'loading' | 'details' | 'generating' | 'ready' | 'failed';
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export const RhymeDetail: React.FC = () => {
-    const { id } = useParams();
+    const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
 
-    // State
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [step, setStep] = useState<'details' | 'generating' | 'success'>('details');
-    const [childName, setChildName] = useState('');
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const rhyme = RHYME_CATALOG[id ?? '1'] ?? RHYME_CATALOG['1'];
 
-    // Mock data fetch based on ID
-    const rhyme = {
-        id,
-        title: 'Twinkle Twinkle Little Star',
-        description: 'A classic lullaby that puts your child among the stars! Perfect for bedtime.',
-        duration: '60s',
-        cost: 50,
-        thumbnailColor: '#FFD166'
-    };
+    const [step, setStep] = useState<GenStep>('loading');
+    const [videoUrl, setVideoUrl] = useState<string | null>(null);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+    const [generationId, setGenerationId] = useState<string | null>(null);
+    const [checkingStorage, setCheckingStorage] = useState(false);
 
-    const handleGenerate = () => {
-        if (!childName || !selectedFile) return;
+    const channelRef = useRef<RealtimeChannel | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
-        setIsModalOpen(false);
+    // ── Apply a generation record update to state ─────────────────────────────
+    const applyRecord = useCallback((record: GenerationRecord) => {
+        setGenerationId(record.id);
+        if (record.status === 'ready' && record.video_url) {
+            setVideoUrl(record.video_url);
+            setStep('ready');
+        } else if (record.status === 'failed') {
+            setStep('failed');
+        } else if (record.status === 'pending' || record.status === 'processing') {
+            setStep('generating');
+        } else {
+            setStep('details');
+        }
+    }, []);
+
+    // ── Subscribe to Realtime updates for a generation record ─────────────────
+    const subscribeToRecord = useCallback((genId: string) => {
+        // Tear down any existing subscription
+        if (channelRef.current) {
+            rhymeService.unsubscribeFromGeneration(channelRef.current);
+        }
+        channelRef.current = rhymeService.subscribeToGeneration(genId, applyRecord);
+    }, [applyRecord]);
+
+    // ── On mount: restore state from DB ─────────────────────────────────────
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const restore = async () => {
+            try {
+                const record = await rhymeService.getGenerationRecord(user.id, rhyme.slug);
+                if (record) {
+                    applyRecord(record);
+                    // If in progress, subscribe so UI auto-updates when n8n calls back
+                    if (record.status === 'pending' || record.status === 'processing') {
+                        subscribeToRecord(record.id);
+                    }
+                } else {
+                    setStep('details');
+                }
+            } catch {
+                setStep('details');
+            }
+        };
+
+        restore();
+
+        return () => {
+            if (channelRef.current) {
+                rhymeService.unsubscribeFromGeneration(channelRef.current);
+                channelRef.current = null;
+            }
+        };
+    }, [user?.id, rhyme.slug, applyRecord, subscribeToRecord]);
+
+    // ── Trigger generation ───────────────────────────────────────────────────
+    const handleGenerate = useCallback(async () => {
+        if (!user?.id || step === 'generating') return;
+
+        const avatar = await avatarService.getCurrentAvatar();
+        if (!avatar?.photo_url) {
+            setErrorMsg('No avatar found. Please create an avatar first.');
+            setStep('failed');
+            return;
+        }
+
         setStep('generating');
+        setErrorMsg(null);
 
-        // Mock API call
-        setTimeout(() => {
-            setStep('success');
-        }, 3000);
+        try {
+            // Upsert DB record (one per user per rhyme) → reset to pending
+            const record = await rhymeService.upsertGenerationRecord(user.id, avatar.id, rhyme.slug);
+            setGenerationId(record.id);
+
+            // Subscribe to Realtime so UI auto-updates when n8n calls the callback
+            subscribeToRecord(record.id);
+
+            // Fire-and-forget: trigger n8n. We don't await the result.
+            // n8n will call rhyme-generation-complete when done,
+            // which updates the DB, and Realtime fires the UI update.
+            rhymeService.triggerGeneration(user.id, avatar.photo_url, rhyme.slug).catch((err) => {
+                console.error('Trigger error (workflow may still run):', err);
+            });
+
+        } catch (err: unknown) {
+            setErrorMsg((err as Error).message || 'Something went wrong. Please try again.');
+            setStep('failed');
+        }
+    }, [user?.id, rhyme.slug, step, subscribeToRecord]);
+
+    const handleDownload = () => {
+        if (!videoUrl) return;
+        const a = document.createElement('a');
+        a.href = videoUrl;
+        a.download = `${rhyme.slug}-my-rhyme-star.mp4`;
+        a.click();
     };
 
+    const handleShare = async () => {
+        if (!videoUrl) return;
+        if (navigator.share) {
+            navigator.share({ title: `🎵 ${rhyme.title} - My Rhyme Star`, text: `Watch my child starring in ${rhyme.title}!`, url: videoUrl }).catch(() => { });
+        } else {
+            await navigator.clipboard.writeText(videoUrl);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+        }
+    };
+
+    const handleCheckNow = useCallback(async () => {
+        if (!user?.id || !generationId || checkingStorage) return;
+        setCheckingStorage(true);
+        try {
+            const url = await rhymeService.checkStorageAndUpdate(user.id, rhyme.slug, generationId);
+            if (url) {
+                setVideoUrl(url);
+                setStep('ready');
+            }
+            // If null, video isn't ready yet — stay on generating screen
+        } catch {
+            // Silently ignore; user can try again
+        } finally {
+            setCheckingStorage(false);
+        }
+    }, [user?.id, generationId, rhyme.slug, checkingStorage]);
+
+    // ── Loading ──────────────────────────────────────────────────────────────
+    if (step === 'loading') {
+        return <div style={styles.genScreen}><div style={styles.spinner} /></div>;
+    }
+
+    // ── Generating screen ── fully async, no timer ───────────────────────────
     if (step === 'generating') {
         return (
-            <div className="flex-col items-center justify-center h-full p-md text-center" style={{ minHeight: '100vh' }}>
-                <div style={{
-                    width: '80px',
-                    height: '80px',
-                    border: '4px solid #eee',
-                    borderTop: '4px solid var(--color-primary)',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                    marginBottom: '24px'
-                }} />
-                <h2 style={{ color: 'var(--color-primary)' }}>Creating Magic...</h2>
-                <p>Polishing the stars for {childName}!</p>
-                <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+            <div style={styles.genScreen}>
+                <button style={styles.genBackBtn} onClick={() => navigate('/home')}>← Home</button>
+
+                <div style={styles.waveContainer}>
+                    {[0.2, 0.5, 0.8, 0.5, 0.2, 0.8, 0.4].map((delay, i) => (
+                        <div key={i} style={{ ...styles.waveBar, animationDelay: `${delay}s` }} />
+                    ))}
+                </div>
+
+                <div style={styles.genEmoji}>{rhyme.emoji}</div>
+                <h2 style={styles.genTitle}>Generating Your Rhyme!</h2>
+                <p style={styles.genSubtitle}>🎵 Mixing the magic for <strong>{rhyme.title}</strong></p>
+
+                <div style={styles.infoBadge}>⏱ This takes ~20 minutes</div>
+
+                <p style={styles.genHint}>
+                    Feel free to go home and come back.{'\n'}
+                    We'll notify you here as soon as it's ready! ✨
+                </p>
+
+                <button style={styles.homeBtn} onClick={() => navigate('/home')}>
+                    ← Go to Home Screen
+                </button>
+
+                {/* Manual check for when n8n callback isn't wired yet */}
+                <button
+                    style={{ ...styles.checkBtn, opacity: checkingStorage ? 0.6 : 1 }}
+                    onClick={handleCheckNow}
+                    disabled={checkingStorage}
+                >
+                    {checkingStorage ? '🔄 Checking...' : '✓ Check if Ready'}
+                </button>
+
+                <style>{`@keyframes wave { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }`}</style>
             </div>
         );
     }
 
-    if (step === 'success') {
+    // ── Ready / Video player screen ──────────────────────────────────────────
+    if (step === 'ready' && videoUrl) {
         return (
-            <div className="flex-col h-full bg-black text-white" style={{ minHeight: '100vh', backgroundColor: '#000' }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                    {/* Mock Video Player */}
-                    <div style={{ width: '100%', aspectRatio: '9/16', backgroundColor: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <PlayCircle size={64} style={{ opacity: 0.8 }} />
-                        <img
-                            src={selectedFile ? URL.createObjectURL(selectedFile) : ''}
-                            style={{ position: 'absolute', width: '100px', height: '100px', borderRadius: '50%', border: '4px solid white', top: '20%' }}
-                            alt="Avatar"
-                        />
+            <div style={styles.videoScreen}>
+                <button style={styles.backBtn} onClick={() => navigate('/home')}>← Home</button>
+
+                <video ref={videoRef} src={videoUrl} controls autoPlay playsInline style={styles.videoEl} />
+
+                <div style={styles.videoCard}>
+                    <h2 style={styles.videoTitle}>{rhyme.title}</h2>
+
+                    <div style={styles.actionRow}>
+                        <button style={styles.actionBtn} onClick={handleDownload}>
+                            <span style={styles.actionIcon}>⬇️</span><span>Download</span>
+                        </button>
+                        <button style={styles.actionBtn} onClick={handleShare}>
+                            <span style={styles.actionIcon}>{copied ? '✅' : '📤'}</span>
+                            <span>{copied ? 'Copied!' : 'Share'}</span>
+                        </button>
                     </div>
 
-                    <button
-                        onClick={() => setStep('details')}
-                        style={{ position: 'absolute', top: '16px', left: '16px', background: 'rgba(0,0,0,0.5)', padding: '8px', borderRadius: '50%', border: 'none', color: 'white' }}
-                    >
-                        <ArrowLeft size={24} />
+                    <button style={styles.regenerateBtn} onClick={handleGenerate}>
+                        🔄 Regenerate ({rhyme.gems} 💎)
                     </button>
                 </div>
-
-                <div style={{ padding: '24px', backgroundColor: 'var(--color-surface)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', color: 'var(--color-text)' }}>
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 style={{ fontSize: '1.2rem', margin: 0 }}>{rhyme.title}</h2>
-                        <div className="flex gap-2">
-                            <Button size="sm" variant="ghost"><Download size={20} /></Button>
-                            <Button size="sm" variant="ghost"><Share2 size={20} /></Button>
-                        </div>
-                    </div>
-
-                    <Button fullWidth onClick={() => setStep('details')}>
-                        Make Another (50 💎)
-                    </Button>
-                </div>
             </div>
         );
     }
 
-    return (
-        <>
-            <header className="flex items-center p-md w-full" style={{ position: 'sticky', top: 0, background: 'var(--color-surface)', zIndex: 10 }}>
-                <button onClick={() => navigate(-1)} style={{ marginRight: '16px', padding: '8px' }}>
-                    <ArrowLeft size={24} color="var(--color-text)" />
+    // ── Failed screen ────────────────────────────────────────────────────────
+    if (step === 'failed') {
+        return (
+            <div style={styles.genScreen}>
+                <button style={styles.genBackBtn} onClick={() => navigate('/home')}>← Home</button>
+                <div style={{ fontSize: 64 }}>😕</div>
+                <h2 style={{ ...styles.genTitle, color: '#dc2626' }}>Generation Failed</h2>
+                <p style={styles.genSubtitle}>{errorMsg || 'Something went wrong with the video generation.'}</p>
+                <button style={styles.regenerateBtn} onClick={handleGenerate}>
+                    🔄 Try Again ({rhyme.gems} 💎)
                 </button>
-                <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 'bold', fontSize: '1.1rem' }}>Rhyme Details</span>
+            </div>
+        );
+    }
+
+    // ── Details screen ───────────────────────────────────────────────────────
+    return (
+        <div style={styles.detailsPage}>
+            <header style={styles.detailHeader}>
+                <button style={styles.headerBackBtn} onClick={() => navigate('/home')}>←</button>
+                <span style={styles.headerTitle}>Rhyme Details</span>
+                <div style={{ width: 40 }} />
             </header>
 
-            <div className="flex-col flex-1 overflow-y-auto">
-                {/* Hero Preview */}
-                <div style={{
-                    height: '240px',
-                    backgroundColor: rhyme.thumbnailColor,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative'
-                }}>
-                    <PlayCircle size={64} color="white" style={{ opacity: 0.8 }} />
-                    <div style={{ position: 'absolute', bottom: '16px', right: '16px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Clock size={12} /> {rhyme.duration}
-                    </div>
-                </div>
-
-                <div className="p-md flex-col gap-md">
-                    <div>
-                        <h1 style={{ fontSize: '1.8rem', color: 'var(--color-primary)', marginBottom: '8px' }}>{rhyme.title}</h1>
-                        <div className="flex items-center gap-sm" style={{ marginBottom: '16px' }}>
-                            <span style={{
-                                background: 'var(--color-secondary)',
-                                color: 'var(--color-text)',
-                                padding: '4px 12px',
-                                borderRadius: '12px',
-                                fontWeight: 'bold',
-                                fontSize: '0.9rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                            }}>
-                                <Diamond size={14} /> {rhyme.cost} Gems
-                            </span>
-                            <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>Recommended Age: 1-5</span>
-                        </div>
-                        <p style={{ lineHeight: '1.6', opacity: 0.9 }}>{rhyme.description}</p>
-                    </div>
-
-                    <Card className="p-md" style={{ border: '2px dashed var(--color-primary)', background: '#f8fbff' }}>
-                        <h3 style={{ marginBottom: '8px' }}>Create Your Video</h3>
-                        <p style={{ fontSize: '0.9rem', marginBottom: '16px' }}>Upload a photo of your child to star in this rhyme!</p>
-                        <Button onClick={() => setIsModalOpen(true)} fullWidth>
-                            Start Creating ({rhyme.cost} 💎)
-                        </Button>
-                    </Card>
-                </div>
+            <div style={styles.heroContainer}>
+                <img src={rhyme.thumb} alt={rhyme.title} style={styles.heroImage} />
+                <div style={styles.durationBadge}>🕐 {rhyme.duration}</div>
             </div>
 
-            <Modal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title="Customize Star"
-                footer={
-                    <Button
-                        fullWidth
-                        onClick={handleGenerate}
-                        disabled={!childName || !selectedFile}
-                        style={{ opacity: (!childName || !selectedFile) ? 0.5 : 1 }}
-                    >
-                        Pay {rhyme.cost} 💎 & Create
-                    </Button>
-                }
-            >
-                <div className="flex-col gap-md">
-                    <div className="flex-col gap-xs">
-                        <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Child's Name</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. Aarav"
-                            value={childName}
-                            onChange={(e) => setChildName(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                borderRadius: 'var(--radius-sm)',
-                                border: '1px solid #ddd',
-                                fontFamily: 'var(--font-body)',
-                                fontSize: '1rem'
-                            }}
-                        />
-                    </div>
+            <div style={styles.contentPad}>
+                <h1 style={styles.rhymeTitle}>{rhyme.emoji} {rhyme.title}</h1>
+                <div style={styles.gemPill}>💎 {rhyme.gems} Gems</div>
+                <p style={styles.rhymeDesc}>{rhyme.description}</p>
 
-                    <div className="flex-col gap-xs">
-                        <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Photo</label>
-                        <PhotoUpload onFileSelect={setSelectedFile} />
-                    </div>
+                <div style={styles.ctaCard}>
+                    <h3 style={styles.ctaTitle}>⭐ Create Your Video</h3>
+                    <p style={styles.ctaSubtitle}>Your avatar will star in this rhyme — personalised just for you!</p>
+                    <button style={styles.generateBtn} onClick={handleGenerate}>
+                        🎬 Generate My Rhyme ({rhyme.gems} 💎)
+                    </button>
                 </div>
-            </Modal>
-        </>
+            </div>
+        </div>
     );
+};
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const styles: Record<string, React.CSSProperties> = {
+    detailsPage: { minHeight: '100vh', backgroundColor: '#f0f8f6', fontFamily: "'Fredoka', sans-serif", overflowY: 'auto' },
+    detailHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', backgroundColor: '#fff', borderBottom: '1px solid #f0f0f0', position: 'sticky', top: 0, zIndex: 10 },
+    headerBackBtn: { width: 40, height: 40, borderRadius: 12, border: 'none', backgroundColor: '#f0f8f6', fontSize: 20, cursor: 'pointer' },
+    headerTitle: { fontSize: 17, fontWeight: 700, color: '#133857' },
+    heroContainer: { position: 'relative', width: '100%', height: 220, overflow: 'hidden' },
+    heroImage: { width: '100%', height: '100%', objectFit: 'cover' },
+    durationBadge: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff', borderRadius: 50, padding: '4px 12px', fontSize: 12, fontWeight: 700 },
+    contentPad: { padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 14 },
+    rhymeTitle: { fontSize: 26, fontWeight: 700, color: '#133857', margin: 0 },
+    gemPill: { display: 'inline-flex', alignSelf: 'flex-start', backgroundColor: '#FFCE44', color: '#133857', borderRadius: 50, padding: '5px 14px', fontSize: 14, fontWeight: 700, boxShadow: '0 2px 0 #DFA92A' },
+    rhymeDesc: { fontSize: 15, color: '#5a7a8a', lineHeight: 1.6, margin: 0 },
+    ctaCard: { backgroundColor: '#fff', borderRadius: 20, padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', border: '2px dashed #38C6D4', display: 'flex', flexDirection: 'column', gap: 10 },
+    ctaTitle: { fontSize: 17, fontWeight: 700, color: '#133857', margin: 0 },
+    ctaSubtitle: { fontSize: 13, color: '#888', margin: 0, lineHeight: 1.5 },
+    generateBtn: { backgroundColor: '#38C6D4', color: '#fff', border: 'none', borderRadius: 14, padding: '15px 20px', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: "'Fredoka', sans-serif", boxShadow: '0 4px 0 #279CA9', width: '100%' },
+    // Generating / error
+    genScreen: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', gap: 16, backgroundColor: '#f0f8f6', fontFamily: "'Fredoka', sans-serif", textAlign: 'center', position: 'relative' },
+    genBackBtn: { position: 'absolute', top: 16, left: 16, backgroundColor: '#fff', border: '1.5px solid #e0f0ee', borderRadius: 12, padding: '8px 16px', fontSize: 14, fontWeight: 700, color: '#38C6D4', cursor: 'pointer', fontFamily: "'Fredoka', sans-serif" },
+    spinner: { width: 48, height: 48, border: '4px solid #38C6D4', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
+    waveContainer: { display: 'flex', alignItems: 'center', gap: 5, height: 60 },
+    waveBar: { width: 8, height: 40, backgroundColor: '#38C6D4', borderRadius: 4, animation: 'wave 1s ease-in-out infinite' },
+    genEmoji: { fontSize: 72, lineHeight: 1 },
+    genTitle: { fontSize: 26, fontWeight: 700, color: '#133857', margin: 0 },
+    genSubtitle: { fontSize: 15, color: '#5a7a8a', margin: 0, lineHeight: 1.5 },
+    infoBadge: { backgroundColor: '#fff', borderRadius: 50, padding: '6px 18px', fontSize: 14, fontWeight: 700, color: '#38C6D4', boxShadow: '0 2px 8px rgba(0,0,0,0.07)' },
+    genHint: { fontSize: 12, color: '#aaa', margin: 0, whiteSpace: 'pre-line', lineHeight: 1.6 },
+    homeBtn: { marginTop: 8, backgroundColor: '#38C6D4', color: '#fff', border: 'none', borderRadius: 14, padding: '13px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: "'Fredoka', sans-serif", boxShadow: '0 3px 0 #279CA9' },
+    checkBtn: { marginTop: 4, backgroundColor: 'transparent', color: '#38C6D4', border: '1.5px solid #38C6D4', borderRadius: 12, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Fredoka', sans-serif" },
+    // Video player
+    videoScreen: { minHeight: '100vh', backgroundColor: '#000', display: 'flex', flexDirection: 'column', fontFamily: "'Fredoka', sans-serif", position: 'relative' },
+    backBtn: { position: 'absolute', top: 16, left: 16, zIndex: 20, backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
+    videoEl: { width: '100%', flex: 1, objectFit: 'contain', backgroundColor: '#000', maxHeight: '60vh' },
+    videoCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16 },
+    videoTitle: { fontSize: 20, fontWeight: 700, color: '#133857', margin: 0 },
+    actionRow: { display: 'flex', gap: 12 },
+    actionBtn: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 10px', backgroundColor: '#f0f8f6', border: '1.5px solid #e0f0ee', borderRadius: 14, fontSize: 13, fontWeight: 700, color: '#133857', cursor: 'pointer', fontFamily: "'Fredoka', sans-serif" },
+    actionIcon: { fontSize: 24 },
+    regenerateBtn: { backgroundColor: '#38C6D4', color: '#fff', border: 'none', borderRadius: 14, padding: '14px 20px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: "'Fredoka', sans-serif", boxShadow: '0 3px 0 #279CA9', width: '100%' },
 };
