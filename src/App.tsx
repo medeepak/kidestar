@@ -1,8 +1,11 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { MobileLayout } from './components/layout/MobileLayout';
 import { Home } from './pages/Home';
 import { RhymeDetail } from './pages/RhymeDetail';
+import { RhymeCatalog } from './pages/RhymeCatalog';
+import { GemStore } from './pages/GemStore';
+import { ReferralPage } from './pages/ReferralPage';
 import { SplashScreen } from './pages/onboarding/SplashScreen';
 import { AgeGate } from './pages/onboarding/AgeGate';
 import { IntroCarousel } from './pages/onboarding/IntroCarousel';
@@ -10,6 +13,8 @@ import { AvatarCreator } from './pages/onboarding/AvatarCreator';
 import { Login } from './pages/Login';
 import { AuthCallback } from './pages/AuthCallback';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NetworkErrorBanner } from './components/features/NetworkErrorBanner';
+import { supabase } from './lib/supabase';
 import './index.css';
 
 // Guard: redirect to /login if user is not authenticated
@@ -44,9 +49,34 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+// Applies referral code from ?ref=CODE query param after login
+const ReferralHandler: React.FC = () => {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const code = params.get('ref');
+    if (code && user?.id) {
+      // Apply referral (idempotent — only sets referred_by if not already set)
+      supabase.rpc('apply_referral_code', { p_new_user_id: user.id, p_code: code })
+        .then(({ data, error }) => {
+          if (!error && data) console.log(`Referral code ${code} applied`);
+        });
+    }
+  }, [user?.id, location.search]);
+
+  return null;
+};
+
 function AppRoutes() {
   return (
     <MobileLayout>
+      {/* Persistent offline banner — shows on top of any screen */}
+      <NetworkErrorBanner />
+      {/* Applies ?ref=CODE referral param after login */}
+      <ReferralHandler />
+
       <Routes>
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/splash" replace />} />
@@ -62,6 +92,9 @@ function AppRoutes() {
         <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
         <Route path="/avatar-create" element={<ProtectedRoute><AvatarCreator /></ProtectedRoute>} />
         <Route path="/rhyme/:id" element={<ProtectedRoute><RhymeDetail /></ProtectedRoute>} />
+        <Route path="/catalog" element={<ProtectedRoute><RhymeCatalog /></ProtectedRoute>} />
+        <Route path="/gem-store" element={<ProtectedRoute><GemStore /></ProtectedRoute>} />
+        <Route path="/referral" element={<ProtectedRoute><ReferralPage /></ProtectedRoute>} />
       </Routes>
     </MobileLayout>
   );

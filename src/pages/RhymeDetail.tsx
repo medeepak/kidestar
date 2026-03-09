@@ -1,29 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import Hls from 'hls.js';
 import { useAuth } from '../contexts/AuthContext';
 import { avatarService } from '../services/avatarService';
 import { rhymeService } from '../services/rhymeService';
 import type { GenerationRecord } from '../services/rhymeService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-
-// ─── Rhyme Catalog ──────────────────────────────────────────────────────────
-
-interface RhymeMeta {
-    id: string;
-    slug: string;
-    title: string;
-    description: string;
-    duration: string;
-    gems: number;
-    thumb: string;
-    emoji: string;
-}
-
-const RHYME_CATALOG: Record<string, RhymeMeta> = {
-    '1': { id: '1', slug: 'wheels-on-the-bus', title: 'Wheels on the Bus', description: 'The classic sing-along about a cheerful bus ride — starring YOUR child as the driver!', duration: '30s', gems: 30, thumb: '/rhymes/wheels.png', emoji: '🚌' },
-    '2': { id: '2', slug: 'johnny-johnny-yes-papa', title: 'Johnny Johnny Yes Papa', description: 'Will papa catch them eating sugar? Put YOUR child in the spotlight of this cheeky classic!', duration: '30s', gems: 30, thumb: '/rhymes/johnny.png', emoji: '🍬' },
-    '3': { id: '3', slug: 'baa-baa-black-sheep', title: 'Baa Baa Black Sheep', description: 'A woolly adventure with YOUR child as the little one who gets a bag of wool!', duration: '30s', gems: 30, thumb: '/rhymes/baa.png', emoji: '🐑' },
-};
+import { RHYME_CATALOG } from '../data/rhymes';
+import { RegenerateModal } from '../components/features/RegenerateModal';
+import { LowGemAlert } from '../components/features/LowGemAlert';
+import { profileService } from '../services/profileService';
 
 type GenStep = 'loading' | 'details' | 'generating' | 'ready' | 'failed';
 
@@ -42,9 +28,52 @@ export const RhymeDetail: React.FC = () => {
     const [copied, setCopied] = useState(false);
     const [generationId, setGenerationId] = useState<string | null>(null);
     const [checkingStorage, setCheckingStorage] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+    const [gemBalance, setGemBalance] = useState<number | null>(null);
+    const [showLowGem, setShowLowGem] = useState(false);
 
     const channelRef = useRef<RealtimeChannel | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const hlsRef = useRef<Hls | null>(null);
+
+    // ── HLS / video setup ─────────────────────────────────────────────────────
+    useEffect(() => {
+        if (!videoUrl || !videoRef.current) return;
+
+        const video = videoRef.current;
+        const isHls = videoUrl.includes('.m3u8');
+
+        // Destroy any previous HLS instance
+        if (hlsRef.current) {
+            hlsRef.current.destroy();
+            hlsRef.current = null;
+        }
+
+        if (isHls && Hls.isSupported()) {
+            const hls = new Hls({ enableWorker: false });
+            hls.loadSource(videoUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                video.play().catch(() => { });
+            });
+            hlsRef.current = hls;
+        } else if (isHls && video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Safari native HLS
+            video.src = videoUrl;
+            video.play().catch(() => { });
+        } else {
+            // Plain MP4
+            video.src = videoUrl;
+            video.play().catch(() => { });
+        }
+
+        return () => {
+            if (hlsRef.current) {
+                hlsRef.current.destroy();
+                hlsRef.current = null;
+            }
+        };
+    }, [videoUrl]);
 
     // ── Apply a generation record update to state ─────────────────────────────
     const applyRecord = useCallback((record: GenerationRecord) => {
@@ -61,25 +90,26 @@ export const RhymeDetail: React.FC = () => {
         }
     }, []);
 
-    // ── Subscribe to Realtime updates for a generation record ─────────────────
     const subscribeToRecord = useCallback((genId: string) => {
-        // Tear down any existing subscription
         if (channelRef.current) {
             rhymeService.unsubscribeFromGeneration(channelRef.current);
         }
         channelRef.current = rhymeService.subscribeToGeneration(genId, applyRecord);
     }, [applyRecord]);
 
-    // ── On mount: restore state from DB ─────────────────────────────────────
+    // ── On mount: restore state from DB + load gem balance ──────────────────
     useEffect(() => {
         if (!user?.id) return;
 
         const restore = async () => {
             try {
-                const record = await rhymeService.getGenerationRecord(user.id, rhyme.slug);
+                const [record, balance] = await Promise.all([
+                    rhymeService.getGenerationRecord(user.id, rhyme.slug),
+                    profileService.getGemBalance(user.id),
+                ]);
+                setGemBalance(balance);
                 if (record) {
                     applyRecord(record);
-                    // If in progress, subscribe so UI auto-updates when n8n calls back
                     if (record.status === 'pending' || record.status === 'processing') {
                         subscribeToRecord(record.id);
                     }
@@ -101,6 +131,15 @@ export const RhymeDetail: React.FC = () => {
         };
     }, [user?.id, rhyme.slug, applyRecord, subscribeToRecord]);
 
+    // ── Gem check gate (called by modal confirm / generate button) ────────────
+    const handleGenerateIntent = useCallback(() => {
+        if (gemBalance !== null && gemBalance < rhyme.gems) {
+            setShowLowGem(true);
+        } else {
+            setShowModal(true);
+        }
+    }, [gemBalance, rhyme.gems]);
+
     // ── Trigger generation ───────────────────────────────────────────────────
     const handleGenerate = useCallback(async () => {
         if (!user?.id || step === 'generating') return;
@@ -116,16 +155,11 @@ export const RhymeDetail: React.FC = () => {
         setErrorMsg(null);
 
         try {
-            // Upsert DB record (one per user per rhyme) → reset to pending
             const record = await rhymeService.upsertGenerationRecord(user.id, avatar.id, rhyme.slug);
             setGenerationId(record.id);
-
-            // Subscribe to Realtime so UI auto-updates when n8n calls the callback
             subscribeToRecord(record.id);
 
-            // Fire-and-forget: trigger n8n. We don't await the result.
-            // n8n will call rhyme-generation-complete when done,
-            // which updates the DB, and Realtime fires the UI update.
+            // Fire-and-forget: n8n is triggered; gems deducted on success in edge function.
             rhymeService.triggerGeneration(user.id, avatar.photo_url, rhyme.slug).catch((err) => {
                 console.error('Trigger error (workflow may still run):', err);
             });
@@ -136,12 +170,24 @@ export const RhymeDetail: React.FC = () => {
         }
     }, [user?.id, rhyme.slug, step, subscribeToRecord]);
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         if (!videoUrl) return;
-        const a = document.createElement('a');
-        a.href = videoUrl;
-        a.download = `${rhyme.slug}-my-rhyme-star.mp4`;
-        a.click();
+        try {
+            const res = await fetch(videoUrl);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${rhyme.slug}-my-rhyme-star.mp4`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch {
+            // Fallback: direct link
+            const a = document.createElement('a');
+            a.href = videoUrl;
+            a.download = `${rhyme.slug}-my-rhyme-star.mp4`;
+            a.click();
+        }
     };
 
     const handleShare = async () => {
@@ -164,9 +210,8 @@ export const RhymeDetail: React.FC = () => {
                 setVideoUrl(url);
                 setStep('ready');
             }
-            // If null, video isn't ready yet — stay on generating screen
         } catch {
-            // Silently ignore; user can try again
+            // Silently ignore
         } finally {
             setCheckingStorage(false);
         }
@@ -177,7 +222,7 @@ export const RhymeDetail: React.FC = () => {
         return <div style={styles.genScreen}><div style={styles.spinner} /></div>;
     }
 
-    // ── Generating screen ── fully async, no timer ───────────────────────────
+    // ── Generating screen ────────────────────────────────────────────────────
     if (step === 'generating') {
         return (
             <div style={styles.genScreen}>
@@ -197,14 +242,13 @@ export const RhymeDetail: React.FC = () => {
 
                 <p style={styles.genHint}>
                     Feel free to go home and come back.{'\n'}
-                    We'll notify you here as soon as it's ready! ✨
+                    We'll update here as soon as it's ready! ✨
                 </p>
 
                 <button style={styles.homeBtn} onClick={() => navigate('/home')}>
                     ← Go to Home Screen
                 </button>
 
-                {/* Manual check for when n8n callback isn't wired yet */}
                 <button
                     style={{ ...styles.checkBtn, opacity: checkingStorage ? 0.6 : 1 }}
                     onClick={handleCheckNow}
@@ -218,16 +262,42 @@ export const RhymeDetail: React.FC = () => {
         );
     }
 
-    // ── Ready / Video player screen ──────────────────────────────────────────
+    // ── Ready / Video player screen (9:16 portrait) ──────────────────────────
     if (step === 'ready' && videoUrl) {
         return (
             <div style={styles.videoScreen}>
+                {showModal && (
+                    <RegenerateModal
+                        rhyme={rhyme}
+                        isFirstGeneration={false}
+                        onConfirm={() => { setShowModal(false); handleGenerate(); }}
+                        onCancel={() => setShowModal(false)}
+                    />
+                )}
+                {showLowGem && (
+                    <LowGemAlert
+                        currentBalance={gemBalance ?? 0}
+                        rhymeGemCost={rhyme.gems}
+                        onDismiss={() => setShowLowGem(false)}
+                    />
+                )}
+
+                {/* Back button */}
                 <button style={styles.backBtn} onClick={() => navigate('/home')}>← Home</button>
 
-                <video ref={videoRef} src={videoUrl} controls autoPlay playsInline style={styles.videoEl} />
+                {/* 9:16 video container */}
+                <div style={styles.videoWrapper}>
+                    <video
+                        ref={videoRef}
+                        controls
+                        playsInline
+                        style={styles.videoEl}
+                    />
+                </div>
 
+                {/* Controls card */}
                 <div style={styles.videoCard}>
-                    <h2 style={styles.videoTitle}>{rhyme.title}</h2>
+                    <h2 style={styles.videoTitle}>{rhyme.emoji} {rhyme.title}</h2>
 
                     <div style={styles.actionRow}>
                         <button style={styles.actionBtn} onClick={handleDownload}>
@@ -239,10 +309,15 @@ export const RhymeDetail: React.FC = () => {
                         </button>
                     </div>
 
-                    <button style={styles.regenerateBtn} onClick={handleGenerate}>
+                    <button style={styles.regenerateBtn} onClick={handleGenerateIntent}>
                         🔄 Regenerate ({rhyme.gems} 💎)
                     </button>
                 </div>
+
+                <style>{`
+                    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+                    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                `}</style>
             </div>
         );
     }
@@ -254,10 +329,25 @@ export const RhymeDetail: React.FC = () => {
                 <button style={styles.genBackBtn} onClick={() => navigate('/home')}>← Home</button>
                 <div style={{ fontSize: 64 }}>😕</div>
                 <h2 style={{ ...styles.genTitle, color: '#dc2626' }}>Generation Failed</h2>
-                <p style={styles.genSubtitle}>{errorMsg || 'Something went wrong with the video generation.'}</p>
-                <button style={styles.regenerateBtn} onClick={handleGenerate}>
+                <p style={styles.genSubtitle}>{errorMsg || 'Something went wrong. Your gems have NOT been charged.'}</p>
+                <button style={styles.homeBtn} onClick={handleGenerateIntent}>
                     🔄 Try Again ({rhyme.gems} 💎)
                 </button>
+                {showLowGem && (
+                    <LowGemAlert
+                        currentBalance={gemBalance ?? 0}
+                        rhymeGemCost={rhyme.gems}
+                        onDismiss={() => setShowLowGem(false)}
+                    />
+                )}
+                {showModal && (
+                    <RegenerateModal
+                        rhyme={rhyme}
+                        isFirstGeneration={false}
+                        onConfirm={() => { setShowModal(false); handleGenerate(); }}
+                        onCancel={() => setShowModal(false)}
+                    />
+                )}
             </div>
         );
     }
@@ -265,6 +355,22 @@ export const RhymeDetail: React.FC = () => {
     // ── Details screen ───────────────────────────────────────────────────────
     return (
         <div style={styles.detailsPage}>
+            {showLowGem && (
+                <LowGemAlert
+                    currentBalance={gemBalance ?? 0}
+                    rhymeGemCost={rhyme.gems}
+                    onDismiss={() => setShowLowGem(false)}
+                />
+            )}
+            {showModal && (
+                <RegenerateModal
+                    rhyme={rhyme}
+                    isFirstGeneration={true}
+                    onConfirm={() => { setShowModal(false); handleGenerate(); }}
+                    onCancel={() => setShowModal(false)}
+                />
+            )}
+
             <header style={styles.detailHeader}>
                 <button style={styles.headerBackBtn} onClick={() => navigate('/home')}>←</button>
                 <span style={styles.headerTitle}>Rhyme Details</span>
@@ -278,17 +384,39 @@ export const RhymeDetail: React.FC = () => {
 
             <div style={styles.contentPad}>
                 <h1 style={styles.rhymeTitle}>{rhyme.emoji} {rhyme.title}</h1>
-                <div style={styles.gemPill}>💎 {rhyme.gems} Gems</div>
+
+                <div style={styles.gemRow}>
+                    <div style={styles.gemPill}>💎 {rhyme.gems} Gems</div>
+                    {gemBalance !== null && (
+                        <div style={styles.balancePill}>
+                            Balance: {gemBalance} 💎
+                        </div>
+                    )}
+                </div>
+
                 <p style={styles.rhymeDesc}>{rhyme.description}</p>
 
                 <div style={styles.ctaCard}>
                     <h3 style={styles.ctaTitle}>⭐ Create Your Video</h3>
                     <p style={styles.ctaSubtitle}>Your avatar will star in this rhyme — personalised just for you!</p>
-                    <button style={styles.generateBtn} onClick={handleGenerate}>
-                        🎬 Generate My Rhyme ({rhyme.gems} 💎)
-                    </button>
+                    {gemBalance !== null && gemBalance < rhyme.gems ? (
+                        <button style={styles.lowGemBtn} onClick={handleGenerateIntent}>
+                            💎 Need {rhyme.gems - gemBalance} More Gems
+                        </button>
+                    ) : (
+                        <button style={styles.generateBtn} onClick={handleGenerateIntent}>
+                            🎬 Generate My Rhyme ({rhyme.gems} 💎)
+                        </button>
+                    )}
                 </div>
             </div>
+
+            <style>{`
+                @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @keyframes wave { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
+            `}</style>
         </div>
     );
 };
@@ -304,12 +432,15 @@ const styles: Record<string, React.CSSProperties> = {
     durationBadge: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff', borderRadius: 50, padding: '4px 12px', fontSize: 12, fontWeight: 700 },
     contentPad: { padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 14 },
     rhymeTitle: { fontSize: 26, fontWeight: 700, color: '#133857', margin: 0 },
+    gemRow: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
     gemPill: { display: 'inline-flex', alignSelf: 'flex-start', backgroundColor: '#FFCE44', color: '#133857', borderRadius: 50, padding: '5px 14px', fontSize: 14, fontWeight: 700, boxShadow: '0 2px 0 #DFA92A' },
+    balancePill: { display: 'inline-flex', backgroundColor: '#f0f8f6', color: '#5a7a8a', borderRadius: 50, padding: '5px 14px', fontSize: 13, fontWeight: 600, border: '1.5px solid #d0e8e4' },
     rhymeDesc: { fontSize: 15, color: '#5a7a8a', lineHeight: 1.6, margin: 0 },
     ctaCard: { backgroundColor: '#fff', borderRadius: 20, padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', border: '2px dashed #38C6D4', display: 'flex', flexDirection: 'column', gap: 10 },
     ctaTitle: { fontSize: 17, fontWeight: 700, color: '#133857', margin: 0 },
     ctaSubtitle: { fontSize: 13, color: '#888', margin: 0, lineHeight: 1.5 },
     generateBtn: { backgroundColor: '#38C6D4', color: '#fff', border: 'none', borderRadius: 14, padding: '15px 20px', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: "'Fredoka', sans-serif", boxShadow: '0 4px 0 #279CA9', width: '100%' },
+    lowGemBtn: { backgroundColor: '#FF9500', color: '#fff', border: 'none', borderRadius: 14, padding: '15px 20px', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: "'Fredoka', sans-serif", boxShadow: '0 4px 0 #D97C00', width: '100%' },
     // Generating / error
     genScreen: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', gap: 16, backgroundColor: '#f0f8f6', fontFamily: "'Fredoka', sans-serif", textAlign: 'center', position: 'relative' },
     genBackBtn: { position: 'absolute', top: 16, left: 16, backgroundColor: '#fff', border: '1.5px solid #e0f0ee', borderRadius: 12, padding: '8px 16px', fontSize: 14, fontWeight: 700, color: '#38C6D4', cursor: 'pointer', fontFamily: "'Fredoka', sans-serif" },
@@ -323,10 +454,26 @@ const styles: Record<string, React.CSSProperties> = {
     genHint: { fontSize: 12, color: '#aaa', margin: 0, whiteSpace: 'pre-line', lineHeight: 1.6 },
     homeBtn: { marginTop: 8, backgroundColor: '#38C6D4', color: '#fff', border: 'none', borderRadius: 14, padding: '13px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: "'Fredoka', sans-serif", boxShadow: '0 3px 0 #279CA9' },
     checkBtn: { marginTop: 4, backgroundColor: 'transparent', color: '#38C6D4', border: '1.5px solid #38C6D4', borderRadius: 12, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Fredoka', sans-serif" },
-    // Video player
+    // Video player — 9:16 portrait
     videoScreen: { minHeight: '100vh', backgroundColor: '#000', display: 'flex', flexDirection: 'column', fontFamily: "'Fredoka', sans-serif", position: 'relative' },
     backBtn: { position: 'absolute', top: 16, left: 16, zIndex: 20, backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
-    videoEl: { width: '100%', flex: 1, objectFit: 'contain', backgroundColor: '#000', maxHeight: '60vh' },
+    videoWrapper: {
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#000',
+        overflow: 'hidden',
+        minHeight: 0,
+    },
+    videoEl: {
+        // Enforce 9:16 aspect ratio — fills height, letterboxes width
+        height: '100%',
+        maxHeight: '65vh',
+        aspectRatio: '9 / 16',
+        objectFit: 'contain',
+        backgroundColor: '#000',
+    },
     videoCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16 },
     videoTitle: { fontSize: 20, fontWeight: 700, color: '#133857', margin: 0 },
     actionRow: { display: 'flex', gap: 12 },

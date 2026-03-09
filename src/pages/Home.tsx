@@ -4,13 +4,12 @@ import { avatarService, type Avatar } from '../services/avatarService';
 import { profileService } from '../services/profileService';
 import { rhymeService, type GenerationStatus } from '../services/rhymeService';
 import { useAuth } from '../contexts/AuthContext';
+import { RHYMES_LIST } from '../data/rhymes';
+import { DeleteDataModal } from '../components/features/DeleteDataModal';
 
 
-const RHYMES = [
-    { id: 1, slug: 'wheels-on-the-bus', title: 'Wheels on the Bus', duration: '30s', gems: 30, thumb: '/rhymes/wheels.png' },
-    { id: 2, slug: 'johnny-johnny-yes-papa', title: 'Johnny Johnny Yes Papa', duration: '30s', gems: 30, thumb: '/rhymes/johnny.png' },
-    { id: 3, slug: 'baa-baa-black-sheep', title: 'Baa Baa Black Sheep', duration: '30s', gems: 30, thumb: '/rhymes/baa.png' },
-];
+// Use the shared catalog — shows all 7 rhymes
+const RHYMES = RHYMES_LIST;
 
 export const Home: React.FC = () => {
     const navigate = useNavigate();
@@ -20,6 +19,7 @@ export const Home: React.FC = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [gemBalance, setGemBalance] = useState<number | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [rhymeStatuses, setRhymeStatuses] = useState<Record<string, GenerationStatus | null>>({});
 
     // Pull-to-refresh state
@@ -32,13 +32,13 @@ export const Home: React.FC = () => {
                 avatarService.getCurrentAvatar(),
                 user?.id ? profileService.getOrCreateProfile(user.id) : null,
                 ...(user?.id
-                    ? RHYMES.map(r => rhymeService.getGenerationRecord(user.id, r.slug))
+                    ? RHYMES_LIST.map(r => rhymeService.getGenerationRecord(user.id, r.slug))
                     : []),
             ]);
             setAvatar(current as Avatar | null);
             setGemBalance((profile as { gem_balance: number } | null)?.gem_balance ?? 0);
             const statusMap: Record<string, GenerationStatus | null> = {};
-            RHYMES.forEach((r, i) => {
+            RHYMES_LIST.forEach((r, i) => {
                 statusMap[r.slug] = (genRecords[i] as { status: GenerationStatus } | null)?.status ?? null;
             });
             setRhymeStatuses(statusMap);
@@ -103,6 +103,19 @@ export const Home: React.FC = () => {
                         </div>
                         <div style={styles.menuDivider} />
                         <button
+                            style={styles.menuItem}
+                            onClick={() => { setMenuOpen(false); navigate('/referral'); }}
+                        >
+                            🌟 Invite Friends & Earn Gems
+                        </button>
+                        <button
+                            style={{ ...styles.menuItem, color: '#dc2626' }}
+                            onClick={() => { setMenuOpen(false); setShowDeleteModal(true); }}
+                        >
+                            🗑️ Delete My Data
+                        </button>
+                        <div style={styles.menuDivider} />
+                        <button
                             style={styles.logoutBtn}
                             onClick={async () => { setMenuOpen(false); await signOut(); }}
                         >
@@ -110,6 +123,10 @@ export const Home: React.FC = () => {
                         </button>
                     </div>
                 </div>
+            )}
+
+            {showDeleteModal && (
+                <DeleteDataModal onClose={() => setShowDeleteModal(false)} />
             )}
 
             {/* Header */}
@@ -151,7 +168,7 @@ export const Home: React.FC = () => {
                     <span style={styles.gemIcon}>💎</span>
                     <span style={styles.gemCount}>{gemBalance ?? '...'}</span>
                 </div>
-                <button style={styles.buyGemsBtn}>BUY GEMS</button>
+                <button style={styles.buyGemsBtn} onClick={() => navigate('/gem-store')}>BUY GEMS</button>
             </div>
 
             {/* Promo Banner */}
@@ -162,14 +179,14 @@ export const Home: React.FC = () => {
             </div>
 
             {/* Catalog Header */}
-            <div style={styles.catalogHeader}>
+            <div style={styles.catalogHeader} onClick={() => navigate('/catalog')} role="button" aria-label="View all rhymes">
                 <span style={styles.catalogTitle}>Nursery rhyme catalog</span>
                 <span style={styles.catalogArrow}>›</span>
             </div>
 
-            {/* Rhyme Grid */}
+            {/* Rhyme Grid — first 6 shown, rest via catalog */}
             <div style={styles.grid}>
-                {RHYMES.map((rhyme) => {
+                {RHYMES.slice(0, 6).map((rhyme) => {
                     const status = rhymeStatuses[rhyme.slug] ?? null;
                     const isGenerating = status === 'pending' || status === 'processing';
                     const isReady = status === 'ready';
@@ -207,7 +224,7 @@ export const Home: React.FC = () => {
                                 )}
                             </div>
                             <div style={styles.rhymeInfo}>
-                                <h4 style={styles.rhymeTitle}>{rhyme.title}</h4>
+                                <h4 style={styles.rhymeTitle}>{rhyme.emoji} {rhyme.title}</h4>
                                 <div style={styles.rhymeMeta}>
                                     {isReady ? (
                                         <span style={styles.watchLabel}>▶ Watch</span>
@@ -216,13 +233,20 @@ export const Home: React.FC = () => {
                                     ) : isFailed ? (
                                         <span style={styles.failedLabel}>⚠️ Failed — Tap to retry</span>
                                     ) : (
-                                        <span style={styles.rhymeDuration}>💎 {rhyme.gems} sc</span>
+                                        <span style={styles.rhymeDuration}>💎 {rhyme.gems}</span>
                                     )}
                                 </div>
                             </div>
                         </div>
                     );
                 })}
+            </div>
+
+            {/* View all button */}
+            <div style={styles.viewAllWrap}>
+                <button style={styles.viewAllBtn} onClick={() => navigate('/catalog')}>
+                    View All Rhymes ({RHYMES.length}) →
+                </button>
             </div>
 
             {/* Bottom padding */}
@@ -424,6 +448,24 @@ const styles: Record<string, React.CSSProperties> = {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '20px 16px 10px',
+        cursor: 'pointer',
+    },
+    viewAllWrap: {
+        padding: '16px 16px 0',
+        display: 'flex',
+        justifyContent: 'center',
+    },
+    viewAllBtn: {
+        backgroundColor: 'transparent',
+        border: '2px solid #38C6D4',
+        borderRadius: 50,
+        padding: '10px 28px',
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#38C6D4',
+        cursor: 'pointer',
+        fontFamily: "'Fredoka', sans-serif",
+        letterSpacing: 0.3,
     },
     catalogTitle: {
         fontSize: 18,
@@ -631,6 +673,22 @@ const styles: Record<string, React.CSSProperties> = {
     menuDivider: {
         height: 1,
         backgroundColor: '#f0f0f0',
+    },
+    menuItem: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '13px 16px',
+        backgroundColor: 'transparent',
+        border: 'none',
+        borderRadius: 14,
+        fontSize: 15,
+        fontWeight: 600,
+        color: '#133857',
+        cursor: 'pointer',
+        fontFamily: "'Fredoka', sans-serif",
+        width: '100%',
+        textAlign: 'left' as const,
     },
     logoutBtn: {
         display: 'flex',
