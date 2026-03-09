@@ -26,7 +26,7 @@ export const RhymeDetail: React.FC = () => {
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
-    const [generationId, setGenerationId] = useState<string | null>(null);
+
     const [checkingStorage, setCheckingStorage] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [gemBalance, setGemBalance] = useState<number | null>(null);
@@ -77,7 +77,6 @@ export const RhymeDetail: React.FC = () => {
 
     // ── Apply a generation record update to state ─────────────────────────────
     const applyRecord = useCallback((record: GenerationRecord) => {
-        setGenerationId(record.id);
         if (record.status === 'ready' && record.video_url) {
             setVideoUrl(record.video_url);
             setStep('ready');
@@ -156,7 +155,6 @@ export const RhymeDetail: React.FC = () => {
 
         try {
             const record = await rhymeService.upsertGenerationRecord(user.id, avatar.id, rhyme.slug);
-            setGenerationId(record.id);
             subscribeToRecord(record.id);
 
             // Fire-and-forget: n8n is triggered; gems deducted on success in edge function.
@@ -202,20 +200,20 @@ export const RhymeDetail: React.FC = () => {
     };
 
     const handleCheckNow = useCallback(async () => {
-        if (!user?.id || !generationId || checkingStorage) return;
+        if (!user?.id || checkingStorage) return;
         setCheckingStorage(true);
         try {
-            const url = await rhymeService.checkStorageAndUpdate(user.id, rhyme.slug, generationId);
-            if (url) {
-                setVideoUrl(url);
-                setStep('ready');
+            // Re-fetch the DB record — n8n stores video_url directly via rhyme-generation-complete
+            const record = await rhymeService.getGenerationRecord(user.id, rhyme.slug);
+            if (record) {
+                applyRecord(record);
             }
         } catch {
             // Silently ignore
         } finally {
             setCheckingStorage(false);
         }
-    }, [user?.id, generationId, rhyme.slug, checkingStorage]);
+    }, [user?.id, rhyme.slug, checkingStorage, applyRecord]);
 
     // ── Loading ──────────────────────────────────────────────────────────────
     if (step === 'loading') {
