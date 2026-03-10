@@ -24,6 +24,7 @@ export const RhymeDetail: React.FC = () => {
 
     const [step, setStep] = useState<GenStep>('loading');
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
+    const [generationId, setGenerationId] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
 
@@ -77,6 +78,7 @@ export const RhymeDetail: React.FC = () => {
 
     // ── Apply a generation record update to state ─────────────────────────────
     const applyRecord = useCallback((record: GenerationRecord) => {
+        setGenerationId(record.id);
         if (record.status === 'ready' && record.video_url) {
             setVideoUrl(record.video_url);
             setStep('ready');
@@ -189,11 +191,12 @@ export const RhymeDetail: React.FC = () => {
     };
 
     const handleShare = async () => {
-        if (!videoUrl) return;
+        if (!generationId) return;
+        const shareUrl = `${window.location.origin}/v/${generationId}`;
         if (navigator.share) {
-            navigator.share({ title: `🎵 ${rhyme.title} - My Rhyme Star`, text: `Watch my child starring in ${rhyme.title}!`, url: videoUrl }).catch(() => { });
+            navigator.share({ title: `🎵 ${rhyme.title} - My Rhyme Star`, text: `Watch my child starring in ${rhyme.title}!`, url: shareUrl }).catch(() => { });
         } else {
-            await navigator.clipboard.writeText(videoUrl);
+            await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
             setTimeout(() => setCopied(false), 2500);
         }

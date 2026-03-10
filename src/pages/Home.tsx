@@ -134,18 +134,20 @@ export const Home: React.FC = () => {
                 <button style={styles.menuBtn} aria-label="Open menu" onClick={() => setMenuOpen(o => !o)}>
                     <span style={styles.menuIcon}>☰</span>
                 </button>
-                <h1 style={styles.headerTitle}>Home Hub</h1>
+                <h1 style={styles.headerTitle}>My Rhyme Star</h1>
                 <div style={{ width: 40 }} />
             </header>
 
-            {/* Avatar Hero */}
-            <div style={styles.avatarCard}>
+            <div style={styles.avatarCard} onClick={() => navigate('/avatar-create')}>
                 {avatar?.photo_url ? (
-                    <img
-                        src={avatar.photo_url}
-                        alt={avatar.child_name}
-                        style={styles.avatarImage}
-                    />
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <img
+                            src={avatar.photo_url}
+                            alt={avatar.child_name}
+                            style={styles.avatarImage}
+                        />
+                        <div style={styles.editAvatarBadge}>✏️</div>
+                    </div>
                 ) : (
                     <div style={styles.avatarPlaceholder}>
                         <div style={styles.avatarEmoji}>🧒</div>
@@ -346,6 +348,22 @@ const styles: Record<string, React.CSSProperties> = {
         height: 220,
         objectFit: 'cover',
         borderRadius: 20,
+    },
+    editAvatarBadge: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        backgroundColor: '#FC664A',
+        color: '#fff',
+        width: 36,
+        height: 36,
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 18,
+        border: '3px solid #fff',
+        boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
     },
     avatarPlaceholder: {
         display: 'flex',

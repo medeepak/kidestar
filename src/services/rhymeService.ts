@@ -64,6 +64,20 @@ export const rhymeService = {
     },
 
     /**
+     * Gets a single generation by its unique ID (used for public sharing).
+     */
+    async getGenerationById(id: string): Promise<GenerationRecord | null> {
+        const { data, error } = await supabase
+            .from('generations')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (error || !data) return null;
+        return data as GenerationRecord;
+    },
+
+    /**
      * Gets the current generation record for this user + rhyme, or null if ungenerated.
      */
     async getGenerationRecord(userId: string, rhymeSlug: string): Promise<GenerationRecord | null> {

@@ -12,6 +12,7 @@ import { IntroCarousel } from './pages/onboarding/IntroCarousel';
 import { AvatarCreator } from './pages/onboarding/AvatarCreator';
 import { Login } from './pages/Login';
 import { AuthCallback } from './pages/AuthCallback';
+import { PublicVideo } from './pages/PublicVideo';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NetworkErrorBanner } from './components/features/NetworkErrorBanner';
 import { supabase } from './lib/supabase';
@@ -91,6 +92,7 @@ function AppRoutes() {
         <Route path="/" element={<RootRedirect />} />
 
         {/* Public routes */}
+        <Route path="/v/:id" element={<PublicVideo />} />
         <Route path="/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/splash" element={<SplashScreen />} />
