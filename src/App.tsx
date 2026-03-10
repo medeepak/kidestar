@@ -69,6 +69,15 @@ const ReferralHandler: React.FC = () => {
   return null;
 };
 
+const RootRedirect: React.FC = () => {
+  const location = useLocation();
+  // If Supabase redirects to the root URL with an auth hash, forward it to the callback
+  if (location.hash.includes('access_token=')) {
+    return <Navigate to={`/auth/callback${location.hash}`} replace />;
+  }
+  return <Navigate to="/splash" replace />;
+};
+
 function AppRoutes() {
   return (
     <MobileLayout>
@@ -78,8 +87,8 @@ function AppRoutes() {
       <ReferralHandler />
 
       <Routes>
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/splash" replace />} />
+        {/* Default redirect (catches hashes if Supabase falls back to Site URL) */}
+        <Route path="/" element={<RootRedirect />} />
 
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
