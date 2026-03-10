@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { avatarService } from '../services/avatarService';
 
 export const AuthCallback: React.FC = () => {
     const navigate = useNavigate();
@@ -9,7 +10,17 @@ export const AuthCallback: React.FC = () => {
         const handle = async () => {
             const { data: { session }, error } = await supabase.auth.getSession();
             if (session && !error) {
-                navigate('/intro', { replace: true });
+                try {
+                    const avatar = await avatarService.getCurrentAvatar();
+                    if (avatar) {
+                        navigate('/home', { replace: true });
+                    } else {
+                        navigate('/intro', { replace: true });
+                    }
+                } catch (err) {
+                    console.error('Error checking avatar status:', err);
+                    navigate('/intro', { replace: true });
+                }
             } else {
                 navigate('/login', { replace: true });
             }
