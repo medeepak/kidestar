@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
 import { useAuth } from '../contexts/AuthContext';
 import { avatarService } from '../services/avatarService';
+import type { Avatar } from '../services/avatarService';
 import { rhymeService } from '../services/rhymeService';
 import type { GenerationRecord } from '../services/rhymeService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -27,6 +28,7 @@ export const RhymeDetail: React.FC = () => {
     const [generationId, setGenerationId] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [avatar, setAvatar] = useState<Avatar | null>(null);
 
     const [checkingStorage, setCheckingStorage] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -104,11 +106,13 @@ export const RhymeDetail: React.FC = () => {
 
         const restore = async () => {
             try {
-                const [record, balance] = await Promise.all([
+                const [record, balance, currentAvatar] = await Promise.all([
                     rhymeService.getGenerationRecord(user.id, rhyme.slug),
                     profileService.getGemBalance(user.id),
+                    avatarService.getCurrentAvatar(),
                 ]);
                 setGemBalance(balance);
+                setAvatar(currentAvatar);
                 if (record) {
                     applyRecord(record);
                     if (record.status === 'pending' || record.status === 'processing') {
@@ -193,8 +197,29 @@ export const RhymeDetail: React.FC = () => {
     const handleShare = async () => {
         if (!generationId) return;
         const shareUrl = `${window.location.origin}/v/${generationId}`;
+        const shareTitle = `🎵 ${rhyme.title} - My Rhyme Star`;
+        const shareText = `Watch my child starring in ${rhyme.title}! 🌟`;
+
+        // Try to attach avatar image as a thumbnail file
+        let avatarFile: File | undefined;
+        if (avatar?.photo_url) {
+            try {
+                const res = await fetch(avatar.photo_url);
+                const blob = await res.blob();
+                const ext = blob.type.includes('png') ? 'png' : 'jpg';
+                avatarFile = new File([blob], `avatar.${ext}`, { type: blob.type });
+            } catch {
+                // Image fetch failed — continue without thumbnail
+            }
+        }
+
         if (navigator.share) {
-            navigator.share({ title: `🎵 ${rhyme.title} - My Rhyme Star`, text: `Watch my child starring in ${rhyme.title}!`, url: shareUrl }).catch(() => { });
+            const shareData: ShareData = { title: shareTitle, text: shareText, url: shareUrl };
+            // Attach avatar image if the browser supports file sharing
+            if (avatarFile && navigator.canShare?.({ files: [avatarFile] })) {
+                shareData.files = [avatarFile];
+            }
+            navigator.share(shareData).catch(() => { });
         } else {
             await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
