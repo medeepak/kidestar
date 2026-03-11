@@ -198,7 +198,8 @@ export const RhymeDetail: React.FC = () => {
         if (!generationId) return;
         const shareUrl = `${window.location.origin}/v/${generationId}`;
         const shareTitle = `🎵 ${rhyme.title} - My Rhyme Star`;
-        const shareText = `Watch my child starring in ${rhyme.title}! 🌟`;
+        const childName = avatar?.child_name ?? 'my child';
+        const shareText = `Watch ${childName} starring in ${rhyme.title}! 🌟`;
 
         // Try to attach avatar image as a thumbnail file
         let avatarFile: File | undefined;
