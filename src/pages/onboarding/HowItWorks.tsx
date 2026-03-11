@@ -3,81 +3,67 @@ import { useNavigate } from 'react-router-dom';
 
 const STEPS = [
     {
-        id: 1,
-        emoji: '📸',
-        color: 'from-[#1EA6EC] to-[#38C6D4]',
-        cardBg: 'bg-white/15',
-        accentColor: '#FFF176',
-        title: 'Upload Your\nKid\'s Photo',
-        description: 'Take or upload a clear photo of your child\'s face. We\'ll use it to create a personalised animated avatar — just for them!',
-        hint: '✅ Works best with a front-facing, well-lit photo',
-        illustration: (
-            <div className="relative flex items-center justify-center">
-                <div className="w-36 h-36 rounded-full bg-white/20 backdrop-blur-sm border-4 border-white/40 flex items-center justify-center shadow-2xl">
-                    <span className="text-7xl">👦🏻</span>
+        gradient: 'from-[#1EA6EC] to-[#38C6D4]',
+        shadowColor: 'rgba(30,166,236,0.4)',
+        title: "Upload Your\nKid's Photo",
+        icon: (
+            <div className="relative flex items-center justify-center w-56 h-56">
+                {/* Outer glow ring */}
+                <div className="absolute inset-0 rounded-full bg-white/20 blur-2xl animate-pulse" />
+                {/* Main circle */}
+                <div className="w-48 h-48 rounded-full bg-white/25 backdrop-blur-sm border-4 border-white/50 flex items-center justify-center shadow-2xl relative z-10">
+                    <span className="text-8xl">👦🏻</span>
                 </div>
-                <div className="absolute -top-3 -right-3 w-14 h-14 bg-white rounded-full flex items-center justify-center text-3xl shadow-lg border-4 border-[#38C6D4] animate-bounce">
+                {/* Camera badge */}
+                <div className="absolute top-2 right-2 w-16 h-16 rounded-full bg-white shadow-xl border-4 border-[#1EA6EC] flex items-center justify-center text-4xl z-20 animate-bounce">
                     📸
                 </div>
-                <div className="absolute -bottom-2 -left-4 w-10 h-10 bg-[#FFF176] rounded-full flex items-center justify-center text-xl shadow-md">
-                    ✨
-                </div>
+                {/* Sparkle */}
+                <div className="absolute bottom-4 left-4 text-3xl animate-pulse z-20">✨</div>
             </div>
         ),
     },
     {
-        id: 2,
-        emoji: '🎵',
-        color: 'from-[#7C3AED] to-[#A855F7]',
-        cardBg: 'bg-white/15',
-        accentColor: '#FDE68A',
-        title: 'Generate\nRhyme Videos',
-        description: 'Pick a nursery rhyme, spend some gems, and watch the magic happen! Your child stars in a personalised video within minutes.',
-        hint: '💎 Start with free gems. Earn more by referring friends!',
-        illustration: (
-            <div className="relative flex items-center justify-center">
-                <div className="w-36 h-36 rounded-3xl bg-white/20 backdrop-blur-sm border-4 border-white/40 flex items-center justify-center shadow-2xl">
-                    <span className="text-7xl">🎬</span>
+        gradient: 'from-[#7C3AED] to-[#A855F7]',
+        shadowColor: 'rgba(124,58,237,0.4)',
+        title: 'Pick a Rhyme\n& Generate!',
+        icon: (
+            <div className="relative flex items-center justify-center w-56 h-56">
+                <div className="absolute inset-0 rounded-full bg-white/20 blur-2xl animate-pulse" />
+                {/* Main rounded square */}
+                <div className="w-48 h-48 rounded-[2.5rem] bg-white/25 backdrop-blur-sm border-4 border-white/50 flex items-center justify-center shadow-2xl relative z-10">
+                    <span className="text-8xl">🎬</span>
                 </div>
-                <div className="absolute -top-4 -left-2 w-12 h-12 bg-[#FDE68A] rounded-full flex items-center justify-center text-2xl shadow-lg border-4 border-white/60 animate-pulse">
-                    🌟
+                {/* Gem badge */}
+                <div className="absolute top-1 right-1 w-16 h-16 rounded-full bg-white shadow-xl border-4 border-[#A855F7] flex items-center justify-center text-4xl z-20 animate-bounce">
+                    💎
                 </div>
-                <div className="absolute -bottom-3 -right-3 w-12 h-12 bg-white rounded-full flex items-center justify-center text-2xl shadow-md">
-                    🎵
-                </div>
-                {/* Waveform bars */}
-                <div className="absolute bottom-2 right-14 flex items-end gap-1">
-                    {[10, 18, 12, 20, 14].map((h, i) => (
-                        <div
-                            key={i}
-                            className="w-1.5 rounded-full bg-white/70"
-                            style={{ height: h, animationDelay: `${i * 0.15}s`, animation: 'wave 1s ease-in-out infinite alternate' }}
-                        />
-                    ))}
-                </div>
+                {/* Music note */}
+                <div className="absolute bottom-4 left-2 text-3xl animate-pulse z-20">🎵</div>
+                {/* Stars */}
+                <div className="absolute top-4 left-4 text-2xl animate-pulse z-20" style={{ animationDelay: '0.8s' }}>⭐</div>
             </div>
         ),
     },
     {
-        id: 3,
-        emoji: '🎉',
-        color: 'from-[#F59E0B] to-[#FC664A]',
-        cardBg: 'bg-white/15',
-        accentColor: '#FFF176',
-        title: 'Enjoy &\nShare the Joy!',
-        description: 'Watch your child\'s face light up! Save the video, share it with family and friends, or keep the memories forever.',
-        hint: '🔗 Share instantly via WhatsApp, Instagram and more!',
-        illustration: (
-            <div className="relative flex items-center justify-center">
-                <div className="w-36 h-36 rounded-full bg-white/20 backdrop-blur-sm border-4 border-white/40 flex items-center justify-center shadow-2xl">
-                    <span className="text-7xl">🥳</span>
+        gradient: 'from-[#F59E0B] to-[#FC664A]',
+        shadowColor: 'rgba(252,102,74,0.4)',
+        title: 'Enjoy & Share\nthe Videos!',
+        icon: (
+            <div className="relative flex items-center justify-center w-56 h-56">
+                <div className="absolute inset-0 rounded-full bg-white/20 blur-2xl animate-pulse" />
+                {/* Main circle */}
+                <div className="w-48 h-48 rounded-full bg-white/25 backdrop-blur-sm border-4 border-white/50 flex items-center justify-center shadow-2xl relative z-10">
+                    <span className="text-8xl">🥳</span>
                 </div>
-                <div className="absolute -top-4 -right-4 w-14 h-14 bg-white rounded-full flex items-center justify-center text-3xl shadow-lg border-4 border-[#FC664A] animate-bounce">
+                {/* Share badge */}
+                <div className="absolute top-2 right-2 w-16 h-16 rounded-full bg-white shadow-xl border-4 border-[#FC664A] flex items-center justify-center text-4xl z-20 animate-bounce">
                     📤
                 </div>
-                <div className="absolute -bottom-2 -left-4 w-10 h-10 bg-[#FFF176] rounded-full flex items-center justify-center text-xl shadow-md animate-pulse">
-                    ❤️
-                </div>
+                {/* Heart */}
+                <div className="absolute bottom-4 left-2 text-3xl animate-pulse z-20">❤️</div>
+                {/* Sparkle */}
+                <div className="absolute top-6 left-6 text-2xl animate-pulse z-20" style={{ animationDelay: '1s' }}>🌟</div>
             </div>
         ),
     },
@@ -92,19 +78,11 @@ export function HowItWorks() {
     const isLast = current === STEPS.length - 1;
 
     const goNext = () => {
-        if (isLast) {
-            navigate('/avatar-create');
-        } else {
-            setCurrent(c => c + 1);
-        }
+        if (isLast) navigate('/avatar-create');
+        else setCurrent(c => c + 1);
     };
 
-    const goTo = (i: number) => setCurrent(i);
-
-    // Swipe support
-    const onTouchStart = (e: React.TouchEvent) => {
-        touchStartX.current = e.touches[0].clientX;
-    };
+    const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
     const onTouchEnd = (e: React.TouchEvent) => {
         if (touchStartX.current === null) return;
         const delta = touchStartX.current - e.changedTouches[0].clientX;
@@ -115,93 +93,57 @@ export function HowItWorks() {
 
     return (
         <div
-            className={`flex flex-col min-h-screen bg-gradient-to-b ${step.color} relative overflow-hidden transition-all duration-500`}
+            className={`flex flex-col min-h-screen bg-gradient-to-b ${step.gradient} transition-all duration-500 overflow-hidden`}
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
         >
-            {/* Ambient background sparkles */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-8 left-8 text-3xl opacity-40 animate-pulse">✨</div>
-                <div className="absolute top-20 right-10 text-4xl opacity-30 animate-pulse" style={{ animationDelay: '1.2s' }}>⭐</div>
-                <div className="absolute bottom-48 left-6 text-2xl opacity-40 animate-pulse" style={{ animationDelay: '0.6s' }}>🌟</div>
-                <div className="absolute bottom-56 right-8 text-3xl opacity-30 animate-pulse" style={{ animationDelay: '2s' }}>✨</div>
-                {/* Large blurred glow */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
+            {/* Background ambient sparkles */}
+            <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-12 left-8 text-2xl opacity-30 animate-pulse">✨</div>
+                <div className="absolute top-24 right-10 text-3xl opacity-25 animate-pulse" style={{ animationDelay: '1.3s' }}>⭐</div>
+                <div className="absolute bottom-40 left-6 text-2xl opacity-30 animate-pulse" style={{ animationDelay: '0.7s' }}>🌟</div>
+                <div className="absolute bottom-52 right-8 text-2xl opacity-20 animate-pulse" style={{ animationDelay: '2s' }}>✨</div>
             </div>
 
-            {/* Skip button */}
-            <div className="flex justify-end px-6 pt-6 relative z-10">
+            {/* Header row: step counter + skip */}
+            <div className="flex items-center justify-between px-6 pt-6 relative z-10">
+                <span className="text-white/60 font-bold text-sm tracking-widest uppercase" style={{ fontFamily: "'Fredoka', sans-serif" }}>
+                    {current + 1} / {STEPS.length}
+                </span>
                 <button
                     onClick={() => navigate('/avatar-create')}
-                    className="text-white/70 font-bold text-base px-4 py-1.5 rounded-full border border-white/25 backdrop-blur-sm hover:text-white hover:border-white/50 transition-all"
+                    className="text-white/65 font-bold text-sm px-4 py-1.5 rounded-full border border-white/25 backdrop-blur-sm"
                     style={{ fontFamily: "'Fredoka', sans-serif" }}
                 >
                     Skip
                 </button>
             </div>
 
-            {/* Step counter label */}
-            <div className="flex justify-center mt-2 relative z-10">
-                <span className="text-white/60 font-bold text-sm tracking-widest uppercase" style={{ fontFamily: "'Fredoka', sans-serif" }}>
-                    Step {current + 1} of {STEPS.length}
-                </span>
-            </div>
+            {/* Main content — centred */}
+            <div className="flex-1 flex flex-col items-center justify-center gap-10 px-6 relative z-10">
 
-            {/* Main card content */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6 pb-4 relative z-10">
+                {/* Big illustration */}
+                {step.icon}
 
-                {/* Illustration */}
-                <div className="mb-8">
-                    {step.illustration}
-                </div>
+                {/* Title only — large, bold, white */}
+                <h1
+                    className="text-white text-5xl font-black text-center leading-tight drop-shadow-lg"
+                    style={{
+                        fontFamily: "'Fredoka', sans-serif",
+                        whiteSpace: 'pre-line',
+                        textShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                    }}
+                >
+                    {step.title}
+                </h1>
 
-                {/* Glassmorphism card */}
-                <div className={`w-full max-w-sm ${step.cardBg} backdrop-blur-md rounded-3xl border border-white/25 shadow-2xl p-6 mb-6`}>
-                    {/* Step number badge */}
-                    <div className="flex items-center gap-3 mb-4">
-                        <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-xl font-black shadow-lg border-2 border-white/50"
-                            style={{ backgroundColor: step.accentColor, color: '#133857', fontFamily: "'Fredoka', sans-serif" }}
-                        >
-                            {step.id}
-                        </div>
-                        <span className="text-white/80 font-bold text-base" style={{ fontFamily: "'Fredoka', sans-serif" }}>
-                            {step.emoji} How it works
-                        </span>
-                    </div>
-
-                    {/* Title */}
-                    <h1
-                        className="text-white font-black text-4xl leading-tight mb-3 drop-shadow-sm"
-                        style={{
-                            fontFamily: "'Fredoka', sans-serif",
-                            WebkitTextStroke: '0.5px rgba(255,255,255,0.3)',
-                            whiteSpace: 'pre-line',
-                        }}
-                    >
-                        {step.title}
-                    </h1>
-
-                    {/* Description */}
-                    <p className="text-white/85 text-[15px] font-semibold leading-relaxed mb-4" style={{ fontFamily: "'Fredoka', sans-serif" }}>
-                        {step.description}
-                    </p>
-
-                    {/* Hint pill */}
-                    <div className="bg-white/15 border border-white/20 rounded-2xl px-4 py-2.5">
-                        <p className="text-white text-sm font-bold" style={{ fontFamily: "'Fredoka', sans-serif" }}>
-                            {step.hint}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Dot progress indicators */}
-                <div className="flex items-center gap-3 mb-6">
+                {/* Dot progress */}
+                <div className="flex items-center gap-3">
                     {STEPS.map((_, i) => (
                         <button
                             key={i}
-                            onClick={() => goTo(i)}
-                            className={`rounded-full transition-all duration-300 ${i === current ? 'w-8 h-3 bg-white shadow-lg' : 'w-3 h-3 bg-white/40 hover:bg-white/60'}`}
+                            onClick={() => setCurrent(i)}
+                            className={`rounded-full transition-all duration-300 ${i === current ? 'w-8 h-3 bg-white shadow-lg' : 'w-3 h-3 bg-white/40'}`}
                         />
                     ))}
                 </div>
@@ -213,9 +155,9 @@ export function HowItWorks() {
                     onClick={goNext}
                     className="w-full h-[68px] rounded-[2rem] text-[22px] font-black text-white flex items-center justify-center gap-2 transition-all active:translate-y-1"
                     style={{
-                        background: isLast ? '#FC664A' : 'rgba(255,255,255,0.25)',
+                        background: isLast ? '#FC664A' : 'rgba(255,255,255,0.28)',
                         border: isLast ? '4px solid #DF462F' : '2.5px solid rgba(255,255,255,0.5)',
-                        boxShadow: isLast ? '0 6px 0 #DF462F' : '0 4px 0 rgba(0,0,0,0.15)',
+                        boxShadow: isLast ? '0 6px 0 #DF462F' : '0 4px 16px rgba(0,0,0,0.15)',
                         backdropFilter: isLast ? 'none' : 'blur(8px)',
                         fontFamily: "'Fredoka', sans-serif",
                     }}
@@ -223,14 +165,6 @@ export function HowItWorks() {
                     {isLast ? "Let's Start! 🚀" : 'Next →'}
                 </button>
             </div>
-
-            {/* Keyframe for waveform bars */}
-            <style>{`
-                @keyframes wave {
-                    from { transform: scaleY(0.5); }
-                    to   { transform: scaleY(1.2); }
-                }
-            `}</style>
         </div>
     );
 }
