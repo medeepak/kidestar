@@ -115,5 +115,17 @@ export const avatarService = {
         }
 
         return data as Avatar;
+    },
+
+    async updateAvatarName(avatarId: string, newName: string): Promise<Avatar> {
+        const { data, error } = await supabase
+            .from('avatars')
+            .update({ child_name: newName })
+            .eq('id', avatarId)
+            .select()
+            .single();
+        
+        if (error) throw error;
+        return data as Avatar;
     }
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { avatarService } from '../../services/avatarService';
@@ -9,6 +9,23 @@ export function AvatarCreator() {
     const [childName, setChildName] = useState('');
     const [photo, setPhoto] = useState<string | null>(null);
     const [generatedAvatarUrl, setGeneratedAvatarUrl] = useState<string | null>(null);
+
+    // Edit state
+    const [existingAvatarId, setExistingAvatarId] = useState<string | null>(null);
+    const [isPhotoChanged, setIsPhotoChanged] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        avatarService.getCurrentAvatar().then((avatar) => {
+            if (avatar) {
+                setChildName(avatar.child_name);
+                setPhoto(avatar.photo_url || null);
+                setExistingAvatarId(avatar.id);
+            }
+            setIsLoading(false);
+        }).catch(() => setIsLoading(false));
+    }, []);
 
     const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -44,6 +61,7 @@ export function AvatarCreator() {
                     // Compress to JPEG 80%
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
                     setPhoto(dataUrl);
+                    setIsPhotoChanged(true);
                 };
                 img.src = event.target?.result as string;
             };
@@ -53,8 +71,22 @@ export function AvatarCreator() {
 
     const handleGenerate = async () => {
         if (!childName || !photo) return;
-        setStep('generating');
 
+        // If editing and photo hasn't changed, just update the name
+        if (existingAvatarId && !isPhotoChanged) {
+            try {
+                await avatarService.updateAvatarName(existingAvatarId, childName);
+                navigate('/home', { replace: true });
+                return;
+            } catch (error: any) {
+                console.error('Failed to update avatar name:', error);
+                alert(`Update Failed: ${error.message}`);
+                return;
+            }
+        }
+
+        // Regenerate or Create new Avatar
+        setStep('generating');
         try {
             const avatar = await avatarService.createAvatar(childName, photo);
             if (avatar?.photo_url) {
@@ -67,6 +99,14 @@ export function AvatarCreator() {
             setStep('form');
         }
     };
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col h-screen items-center justify-center bg-[#A3D5FF]">
+                <div className="w-12 h-12 border-4 border-white/40 border-t-white rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
     if (step === 'generating') {
         return (
@@ -144,24 +184,28 @@ export function AvatarCreator() {
             {/* Header Text */}
             <div className="px-6 text-center z-10 relative w-full max-w-[360px]">
                 <h1 className="text-[#0B3770] text-[30px] font-black leading-tight tracking-wide">
-                    Upload a photo<br />
-                    and enter the child's<br />
-                    name
+                    {existingAvatarId ? (
+                        <>Update your Avatar<br />or Name</>
+                    ) : (
+                        <>Upload a photo<br />and enter the child's<br />name</>
+                    )}
                 </h1>
             </div>
 
-            {/* Photo Upload Box */}
-            <div className="mt-8 z-10 relative">
-                <div className={`relative w-[230px] h-[230px] rounded-[3.5rem] overflow-hidden flex items-center justify-center transition-all bg-[#A6DCFA] ${photo ? 'border-[4px] border-[#81C85A]' : 'border-[5px] border-dashed border-[#6DB8EF]'}`}
-                    style={{
-                        boxShadow: photo ? '0 0 0 2px #81C85A' : 'none'
-                    }}>
-                    <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handlePhotoUpload}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                    />
+            {/* Photo Upload Area */}
+            <div className="mt-8 z-10 relative flex flex-col items-center">
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                />
+                <div
+                    className={`relative w-[230px] h-[230px] rounded-[3.5rem] overflow-hidden flex items-center justify-center transition-all bg-[#A6DCFA] ${photo ? 'border-[4px] border-[#81C85A]' : 'border-[5px] border-dashed border-[#6DB8EF] cursor-pointer'}`}
+                    style={{ boxShadow: photo ? '0 0 0 2px #81C85A' : 'none' }}
+                    onClick={() => { if (!photo) fileInputRef.current?.click(); }}
+                >
                     {photo ? (
                         <img src={photo} alt="Preview" className="w-full h-full object-cover z-10 relative" />
                     ) : (
@@ -171,6 +215,16 @@ export function AvatarCreator() {
                         </svg>
                     )}
                 </div>
+
+                {/* Change Avatar Button */}
+                {photo && (
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="mt-6 px-6 py-3 bg-white text-[#0B3770] font-extrabold text-[20px] rounded-full shadow-[0_4px_0_#D1E9FA] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2 border-2 border-[#D1E9FA]"
+                    >
+                        📸 Change Avatar
+                    </button>
+                )}
             </div>
 
             {/* Name Input Pill */}
@@ -179,7 +233,7 @@ export function AvatarCreator() {
                     type="text"
                     value={childName}
                     onChange={(e) => setChildName(e.target.value)}
-                    placeholder="Samantha"
+                    placeholder="Child's Name"
                     className="w-full h-[76px] px-6 text-center text-[28px] font-black bg-[#EAF7FF] text-[#0B3770] rounded-[2.5rem] border-[4px] border-[#68B7EB] focus:outline-none placeholder-[#0B3770] transition-all"
                 />
             </div>
@@ -194,9 +248,19 @@ export function AvatarCreator() {
                     className={`w-full h-[76px] rounded-[2.5rem] text-[28px] font-black text-white bg-[#FC664A] border-[4px] border-[#DF462F] shadow-[0_6px_0_#DF462F] flex items-center justify-center transition-transform ${(!childName || !photo) ? 'opacity-90 cursor-not-allowed' : 'active:translate-y-[6px] active:shadow-[0_0px_0_#DF462F]'}`}
                     style={{ backgroundColor: '#FC664A' }}
                 >
-                    Continue
+                    {existingAvatarId && !isPhotoChanged ? 'Save Changes' : 'Continue'}
                 </button>
             </div>
+
+            {/* Nav Back Button */}
+            {existingAvatarId && (
+                <button
+                    onClick={() => navigate('/home')}
+                    className="mt-6 px-6 py-2 bg-transparent text-[#0B3770] font-bold opacity-80 hover:opacity-100 transition-all z-10 relative"
+                >
+                    Cancel
+                </button>
+            )}
         </div>
     );
 }
