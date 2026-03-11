@@ -9,6 +9,7 @@ export const PublicVideo: React.FC = () => {
     const [record, setRecord] = useState<GenerationRecord | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
 
@@ -53,6 +54,55 @@ export const PublicVideo: React.FC = () => {
         };
     }, [record?.video_url]);
 
+    // ── Actions ──────────────────────────────────────────────────────────────
+
+    const handleFullscreen = () => {
+        const video = videoRef.current;
+        if (!video) return;
+        if (video.requestFullscreen) {
+            video.requestFullscreen();
+        } else if ((video as any).webkitEnterFullscreen) {
+            // iOS Safari
+            (video as any).webkitEnterFullscreen();
+        }
+    };
+
+    const handleShare = async () => {
+        const shareUrl = window.location.href;
+        if (navigator.share) {
+            navigator.share({
+                title: '🎵 My Rhyme Star',
+                text: 'Watch this amazing personalised rhyme video!',
+                url: shareUrl,
+            }).catch(() => { });
+        } else {
+            await navigator.clipboard.writeText(shareUrl);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+        }
+    };
+
+    const handleDownload = async () => {
+        if (!record?.video_url) return;
+        try {
+            const res = await fetch(record.video_url);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'my-rhyme-star.mp4';
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch {
+            const a = document.createElement('a');
+            a.href = record.video_url;
+            a.download = 'my-rhyme-star.mp4';
+            a.click();
+        }
+    };
+
+    // ── Loading ──────────────────────────────────────────────────────────────
+
     if (loading) {
         return (
             <div style={styles.screen}>
@@ -60,6 +110,8 @@ export const PublicVideo: React.FC = () => {
             </div>
         );
     }
+
+    // ── Error ────────────────────────────────────────────────────────────────
 
     if (error || !record) {
         return (
@@ -76,6 +128,8 @@ export const PublicVideo: React.FC = () => {
         );
     }
 
+    // ── Main layout ──────────────────────────────────────────────────────────
+
     return (
         <div style={styles.screen}>
             {/* Header */}
@@ -83,8 +137,8 @@ export const PublicVideo: React.FC = () => {
                 <h1 style={styles.headerTitle}>My Rhyme Star</h1>
             </header>
 
-            {/* Video Player */}
-            <div style={styles.playerWrapper}>
+            {/* 9:16 Video — constrained height so controls are never hidden */}
+            <div style={styles.videoWrapper}>
                 <video
                     ref={videoRef}
                     style={styles.video}
@@ -96,16 +150,33 @@ export const PublicVideo: React.FC = () => {
                 />
             </div>
 
-            {/* Footer / CTA to drive viral signups */}
-            <div style={styles.footerInfo}>
-                <div style={styles.videoTitle}>Starring your friend in a magical rhyme! ✨</div>
-                <button
-                    style={styles.ctaBtn}
-                    onClick={() => navigate('/splash')}
-                >
+            {/* Action buttons row */}
+            <div style={styles.actionsRow}>
+                <button style={styles.actionBtn} onClick={handleFullscreen} title="Fullscreen">
+                    <span style={styles.actionIcon}>⛶</span>
+                    <span style={styles.actionLabel}>Fullscreen</span>
+                </button>
+                <button style={styles.actionBtn} onClick={handleShare} title="Share">
+                    <span style={styles.actionIcon}>{copied ? '✅' : '📤'}</span>
+                    <span style={styles.actionLabel}>{copied ? 'Copied!' : 'Share'}</span>
+                </button>
+                <button style={styles.actionBtn} onClick={handleDownload} title="Download">
+                    <span style={styles.actionIcon}>⬇️</span>
+                    <span style={styles.actionLabel}>Download</span>
+                </button>
+            </div>
+
+            {/* Viral CTA */}
+            <div style={styles.ctaSection}>
+                <p style={styles.tagline}>Starring your friend in a magical rhyme! ✨</p>
+                <button style={styles.ctaBtn} onClick={() => navigate('/splash')}>
                     Create a video of YOUR kid! 🌟
                 </button>
             </div>
+
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+            `}</style>
         </div>
     );
 };
@@ -115,71 +186,101 @@ const styles: Record<string, React.CSSProperties> = {
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
-        backgroundColor: '#000',
+        backgroundColor: '#0a0a1a',
         fontFamily: "'Fredoka', sans-serif",
+        overflowY: 'auto',
     },
     spinner: {
         width: 48,
         height: 48,
-        border: '4px solid rgba(255,255,255,0.2)',
+        border: '4px solid rgba(255,255,255,0.15)',
         borderTopColor: '#38C6D4',
         borderRadius: '50%',
         animation: 'spin 0.8s linear infinite',
         margin: 'auto',
+        marginTop: '45vh',
     },
     header: {
         display: 'flex',
         justifyContent: 'center',
-        padding: '16px',
-        background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
+        padding: '14px 16px 10px',
+        backgroundColor: '#0a0a1a',
+        flexShrink: 0,
     },
     headerTitle: {
         margin: 0,
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: 800,
         color: '#fff',
-        textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-        letterSpacing: 1,
+        letterSpacing: 0.5,
         fontFamily: "'Fredoka', sans-serif",
     },
-    playerWrapper: {
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+    // Video block — fixed max-height so controls at bottom are always visible
+    videoWrapper: {
         width: '100%',
-        height: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        backgroundColor: '#000',
+        flexShrink: 0,
     },
     video: {
         width: '100%',
-        height: '100%',
-        maxHeight: '100vh',
+        maxWidth: 480,
+        // Leave enough room for the 3 rows below (~200px) so controls never overlap
+        maxHeight: 'calc(100vh - 220px)',
+        aspectRatio: '9 / 16',
         objectFit: 'contain',
         backgroundColor: '#000',
+        display: 'block',
     },
-    footerInfo: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: '32px 20px 24px',
-        background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
+    // 3-button action row below video
+    actionsRow: {
+        display: 'flex',
+        justifyContent: 'center',
+        gap: 12,
+        padding: '14px 20px 8px',
+        flexShrink: 0,
+    },
+    actionBtn: {
+        flex: 1,
+        maxWidth: 120,
         display: 'flex',
         flexDirection: 'column',
-        gap: 16,
         alignItems: 'center',
+        gap: 4,
+        padding: '12px 8px',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        border: '1.5px solid rgba(255,255,255,0.15)',
+        borderRadius: 14,
+        cursor: 'pointer',
+        fontFamily: "'Fredoka', sans-serif",
+        color: '#fff',
     },
-    videoTitle: {
-        fontSize: 18,
+    actionIcon: {
+        fontSize: 22,
+        lineHeight: 1,
+    },
+    actionLabel: {
+        fontSize: 12,
+        fontWeight: 600,
+        color: '#ccc',
+    },
+    // Bottom CTA section
+    ctaSection: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 12,
+        padding: '8px 20px 28px',
+        flexShrink: 0,
+    },
+    tagline: {
+        margin: 0,
+        fontSize: 15,
         fontWeight: 600,
         color: '#fff',
         textAlign: 'center',
-        textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+        opacity: 0.85,
     },
     ctaBtn: {
         width: '100%',
@@ -189,11 +290,11 @@ const styles: Record<string, React.CSSProperties> = {
         color: '#fff',
         border: '4px solid #DF462F',
         borderRadius: 24,
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: 800,
         cursor: 'pointer',
         boxShadow: '0 6px 0 #DF462F, 0 10px 20px rgba(0,0,0,0.3)',
-        transition: 'transform 0.1s',
+        fontFamily: "'Fredoka', sans-serif",
     },
     errorCard: {
         margin: 'auto',
