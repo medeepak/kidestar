@@ -5,7 +5,7 @@ export function IntroCarousel() {
     const navigate = useNavigate();
 
     const handleComplete = () => {
-        navigate('/avatar-create');
+        navigate('/tutorial');
     };
 
     return (

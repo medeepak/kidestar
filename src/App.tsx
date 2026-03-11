@@ -10,6 +10,7 @@ import { SplashScreen } from './pages/onboarding/SplashScreen';
 import { AgeGate } from './pages/onboarding/AgeGate';
 import { IntroCarousel } from './pages/onboarding/IntroCarousel';
 import { AvatarCreator } from './pages/onboarding/AvatarCreator';
+import { HowItWorks } from './pages/onboarding/HowItWorks';
 import { Login } from './pages/Login';
 import { AuthCallback } from './pages/AuthCallback';
 import { PublicVideo } from './pages/PublicVideo';
@@ -98,6 +99,7 @@ function AppRoutes() {
         <Route path="/splash" element={<SplashScreen />} />
         <Route path="/age-gate" element={<AgeGate />} />
         <Route path="/intro" element={<IntroCarousel />} />
+        <Route path="/tutorial" element={<HowItWorks />} />
 
         {/* Protected routes */}
         <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
