@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { avatarService } from '../../services/avatarService';
+import { NotificationPrompt } from '../../components/features/NotificationPrompt';
+import { supabase } from '../../lib/supabase';
 
 export function AvatarCreator() {
     const navigate = useNavigate();
@@ -14,6 +16,7 @@ export function AvatarCreator() {
     const [existingAvatarId, setExistingAvatarId] = useState<string | null>(null);
     const [isPhotoChanged, setIsPhotoChanged] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -131,6 +134,35 @@ export function AvatarCreator() {
     if (step === 'preview') {
         return (
             <div className="flex flex-col min-h-[100dvh] p-8 bg-gradient-to-b from-[#FFF2D7] to-[#FFE6E6] relative overflow-hidden pb-10">
+                {showNotificationPrompt && (
+                    <NotificationPrompt
+                        onEnable={async () => {
+                            setShowNotificationPrompt(false);
+                            // Get OneSignal ID and save it
+                            // @ts-ignore
+                            if (window.OneSignalDeferred) {
+                                // @ts-ignore
+                                window.OneSignalDeferred.push(async function (OneSignal) {
+                                    const id = await OneSignal.User.PushSubscription.id;
+                                    if (id) {
+                                        const { data: { session } } = await supabase.auth.getSession();
+                                        if (session?.user?.id) {
+                                            await supabase.from('profiles').update({ onesignal_id: id }).eq('id', session.user.id);
+                                        }
+                                    }
+                                    navigate('/home');
+                                });
+                            } else {
+                                navigate('/home');
+                            }
+                        }}
+                        onDismiss={() => {
+                            setShowNotificationPrompt(false);
+                            navigate('/home');
+                        }}
+                    />
+                )}
+
                 {/* Confetti Background */}
                 <div className="absolute inset-0 opacity-40 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, #FFB6C1 3px, transparent 4px)', backgroundSize: '40px 40px', backgroundPosition: '0 0, 20px 20px' }}></div>
 
@@ -168,7 +200,7 @@ export function AvatarCreator() {
                             variant="secondary"
                             size="lg"
                             fullWidth
-                            onClick={() => navigate('/home')}
+                            onClick={() => setShowNotificationPrompt(true)}
                         >
                             Confirm
                         </Button>

@@ -137,6 +137,40 @@ Deno.serve(async (req: Request) => {
         if (refErr) console.error(`Referral bonus failed: ${refErr.message}`);
         else console.log(`Referral bonus awarded for user=${user_id}'s first video`);
       }
+
+      // ── OneSignal Push Notification ───────────────────────────────────────
+      const { data: profile } = await supabase.from('profiles').select('onesignal_id').eq('id', user_id).single();
+      if (profile?.onesignal_id) {
+        const onesignalAppId = Deno.env.get('ONESIGNAL_APP_ID');
+        const onesignalApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
+        const siteUrl = Deno.env.get('SITE_URL') || 'http://localhost:3000';
+
+        if (onesignalAppId && onesignalApiKey) {
+           try {
+             const pushReq = await fetch('https://api.onesignal.com/notifications', {
+               method: 'POST',
+               headers: {
+                 'Content-Type': 'application/json',
+                 'Authorization': `Basic ${onesignalApiKey}`,
+               },
+               body: JSON.stringify({
+                 app_id: onesignalAppId,
+                 include_subscription_ids: [profile.onesignal_id],
+                 headings: { en: "✨ Your Star is Ready!" },
+                 contents: { en: `The video for ${rhyme_slug} has finished generating.` },
+                 url: `${siteUrl}/rhymes/${rhyme_slug}`
+               })
+             });
+             const pushRes = await pushReq.json();
+             console.log(`Push notification sent to ${profile.onesignal_id}:`, pushRes);
+           } catch (pushErr) {
+             console.error('Failed to send push notification:', pushErr);
+           }
+        } else {
+           console.log('Skipping push notification—OneSignal keys not configured in Edge Function env');
+        }
+      }
+
     } else {
       console.log(`Generation failed for user=${user_id}. No gems charged.`);
     }
