@@ -17,6 +17,7 @@ const N8N_WEBHOOKS: Record<string, string> = {
   "space-odyssey":          "https://n8n.srv1159826.hstgr.cloud/webhook/space-odyssey",
   "walk-with-dinos":        "https://n8n.srv1159826.hstgr.cloud/webhook/walk-with-dinos",
   "monster-madness":        "https://n8n.srv1159826.hstgr.cloud/webhook/monster-madness",
+  "dodo-dragon":            "https://n8n.srv1159826.hstgr.cloud/webhook/dodo-dragon",
 };
 
 Deno.serve(async (req: Request) => {

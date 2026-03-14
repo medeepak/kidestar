@@ -82,6 +82,16 @@ export const RHYME_CATALOG: Record<string, RhymeMeta> = {
         thumb: '/rhymes/monster.png',
         emoji: '👾',
     },
+    '8': {
+        id: '8',
+        slug: 'dodo-dragon',
+        title: 'Play with Dragon',
+        description: 'A magical forest adventure! YOUR child plays with a friendly green dragon, a mischievous monkey, and a hopping rabbit!',
+        duration: '30s',
+        gems: 35,
+        thumb: '/rhymes/dodo_dragon.png',
+        emoji: '🐲',
+    },
 };
 
 export const RHYMES_LIST: RhymeMeta[] = Object.values(RHYME_CATALOG);
