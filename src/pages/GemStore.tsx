@@ -1,81 +1,132 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { profileService } from '../services/profileService';
+import { supabase } from '../lib/supabase';
 
 interface GemTier {
     id: string;
+    name: string;
     gems: number;
-    price: string;
-    popular?: boolean;
-    bonus?: string;
-    color: string;
-    shadow: string;
+    price_inr: number;
+    popular: boolean;
+    bonus_text: string | null;
     emoji: string;
+    bg_color: string;
+    shadow_color: string;
 }
-
-const GEM_TIERS: GemTier[] = [
-    {
-        id: 'starter',
-        gems: 100,
-        price: '₹99',
-        emoji: '💎',
-        color: '#38C6D4',
-        shadow: '#279CA9',
-    },
-    {
-        id: 'popular',
-        gems: 500,
-        price: '₹399',
-        popular: true,
-        bonus: 'Best Value',
-        emoji: '💎💎',
-        color: '#80C950',
-        shadow: '#63A33A',
-    },
-    {
-        id: 'super',
-        gems: 1500,
-        price: '₹999',
-        bonus: '+200 bonus',
-        emoji: '💎💎💎',
-        color: '#FF9500',
-        shadow: '#D97C00',
-    },
-    {
-        id: 'mega',
-        gems: 4000,
-        price: '₹1999',
-        bonus: '+800 bonus',
-        emoji: '👑',
-        color: '#8B5CF6',
-        shadow: '#6D28D9',
-    },
-];
 
 export const GemStore: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const [gemBalance, setGemBalance] = useState<number | null>(null);
+    const [tiers, setTiers] = useState<GemTier[]>([]);
     const [toast, setToast] = useState<string | null>(null);
-
-    const loadBalance = useCallback(async () => {
-        if (!user?.id) return;
-        try {
-            const profile = await profileService.getOrCreateProfile(user.id);
-            setGemBalance((profile as { gem_balance: number } | null)?.gem_balance ?? 0);
-        } catch (e) {
-            console.error('Failed to load gem balance', e);
-        }
-    }, [user?.id]);
+    const [loadingTier, setLoadingTier] = useState<string | null>(null);
 
     useEffect(() => {
-        loadBalance();
-    }, [loadBalance]);
+        if (!user?.id) return;
 
-    const handlePurchase = (tier: GemTier) => {
-        setToast(`💳 In-App Purchase coming soon!\n${tier.gems} gems pack (${tier.price}) will be available at launch.`);
-        setTimeout(() => setToast(null), 3500);
+        const loadData = async () => {
+            try {
+                const profile = await profileService.getOrCreateProfile(user.id);
+                setGemBalance((profile as { gem_balance: number } | null)?.gem_balance ?? 0);
+
+                const { data } = await supabase.from('gem_tiers').select('*').order('price_inr', { ascending: true });
+                if (data) setTiers(data as GemTier[]);
+            } catch (e) {
+                console.error('Failed to load store data', e);
+            }
+        };
+
+        loadData();
+    }, [user?.id]);
+
+    const handlePurchase = async (tier: GemTier) => {
+        if (!user?.id) return;
+        setLoadingTier(tier.id);
+
+        try {
+            // 1. Create Order via Edge Function
+            const { data: orderData, error: orderError } = await supabase.functions.invoke('create-razorpay-order', {
+                body: { tier_id: tier.id }
+            });
+
+            if (orderError) throw orderError;
+            if (orderData.error) throw new Error(orderData.error);
+
+            // 2. Load Razorpay Script conditionally
+            const scriptLoaded = await new Promise((resolve) => {
+                if ((window as any).Razorpay) {
+                    resolve(true);
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                script.onload = () => resolve(true);
+                script.onerror = () => resolve(false);
+                document.body.appendChild(script);
+            });
+
+            if (!scriptLoaded) throw new Error("Failed to load Razorpay SDK. Please check your connection.");
+
+            // 3. Open Razorpay Checkout
+            const options = {
+                key: import.meta.env.VITE_RAZORPAY_KEY_ID || '',
+                amount: orderData.amount,
+                currency: orderData.currency,
+                name: "My Rhyme Star",
+                description: tier.name,
+                order_id: orderData.id,
+                handler: async function (response: any) {
+                    try {
+                        setToast("⏳ Verifying payment...");
+                        // 3. Verify Payment
+                        const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+                            body: {
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature
+                            }
+                        });
+
+                        if (verifyError || verifyData?.error) throw verifyError || new Error(verifyData?.error);
+
+                        setToast(`🎉 Success! Added ${tier.gems} gems to your account.`);
+                        setGemBalance((prev) => (prev !== null ? prev + tier.gems : tier.gems)); // Optimistic UI update
+                        setTimeout(() => setToast(null), 4000);
+                    } catch (err) {
+                        console.error("Verification failed", err);
+                        setToast("❌ Payment verification failed. Please contact support.");
+                        setTimeout(() => setToast(null), 4000);
+                    }
+                },
+                prefill: {
+                    name: user?.user_metadata?.full_name || "Parent",
+                    email: user?.email || "",
+                },
+                theme: {
+                    color: tier.bg_color
+                }
+            };
+
+            const rzp = new (window as any).Razorpay(options);
+            
+            rzp.on('payment.failed', function (response: any){
+                console.error("Payment failed:", response.error);
+                setToast("❌ Payment failed or cancelled.");
+                setTimeout(() => setToast(null), 4000);
+            });
+
+            rzp.open();
+
+        } catch (err: any) {
+            console.error("Purchase error:", err);
+            setToast(`❌ Error initializing checkout: ${err.message}`);
+            setTimeout(() => setToast(null), 4000);
+        } finally {
+            setLoadingTier(null);
+        }
     };
 
     return (
@@ -118,23 +169,23 @@ export const GemStore: React.FC = () => {
 
             {/* Tiers */}
             <div style={styles.tiersWrap}>
-                {GEM_TIERS.map(tier => (
+                {tiers.map(tier => (
                     <div
                         key={tier.id}
                         style={{
                             ...styles.tierCard,
-                            borderColor: tier.popular ? tier.color : 'transparent',
+                            borderColor: tier.popular ? tier.bg_color : 'transparent',
                             borderWidth: tier.popular ? 2.5 : 0,
                         }}
                     >
                         {tier.popular && (
-                            <div style={{ ...styles.popularBadge, backgroundColor: tier.color }}>
-                                ⭐ {tier.bonus}
+                            <div style={{ ...styles.popularBadge, backgroundColor: tier.bg_color }}>
+                                ⭐ {tier.bonus_text || 'Best Value'}
                             </div>
                         )}
-                        {tier.bonus && !tier.popular && (
-                            <div style={{ ...styles.bonusBadge, backgroundColor: tier.color }}>
-                                🎁 {tier.bonus}
+                        {tier.bonus_text && !tier.popular && (
+                            <div style={{ ...styles.bonusBadge, backgroundColor: tier.bg_color }}>
+                                🎁 {tier.bonus_text}
                             </div>
                         )}
 
@@ -142,7 +193,7 @@ export const GemStore: React.FC = () => {
                             <span style={styles.tierEmoji}>{tier.emoji}</span>
                             <div>
                                 <div style={styles.tierGems}>{tier.gems.toLocaleString()} Gems</div>
-                                <div style={styles.tierPrice}>{tier.price}</div>
+                                <div style={styles.tierPrice}>₹{tier.price_inr}</div>
                             </div>
                         </div>
 
@@ -150,13 +201,15 @@ export const GemStore: React.FC = () => {
                             id={`buy-${tier.id}`}
                             style={{
                                 ...styles.buyBtn,
-                                backgroundColor: tier.color,
-                                boxShadow: `0 4px 0 ${tier.shadow}`,
+                                backgroundColor: tier.bg_color,
+                                boxShadow: `0 4px 0 ${tier.shadow_color}`,
+                                opacity: loadingTier === tier.id ? 0.7 : 1,
                             }}
+                            disabled={loadingTier === tier.id}
                             onClick={() => handlePurchase(tier)}
-                            aria-label={`Buy ${tier.gems} gems for ${tier.price}`}
+                            aria-label={`Buy ${tier.gems} gems for ₹${tier.price_inr}`}
                         >
-                            Buy
+                            {loadingTier === tier.id ? 'Loading...' : 'Buy'}
                         </button>
                     </div>
                 ))}
@@ -168,7 +221,7 @@ export const GemStore: React.FC = () => {
                     id="restore-purchases"
                     style={styles.restoreBtn}
                     onClick={() => {
-                        setToast('♻️ Restore Purchases will be available after App Store launch.');
+                        setToast('♻️ Web purchases are restored automatically.');
                         setTimeout(() => setToast(null), 3000);
                     }}
                 >
@@ -179,7 +232,7 @@ export const GemStore: React.FC = () => {
             {/* Fine print */}
             <p style={styles.finePrint}>
                 Gems are non-refundable except where required by law.{'\n'}
-                Purchases are processed via Apple / Google in-app billing at launch.
+                Payments are securely processed by Razorpay.
             </p>
 
             <div style={{ height: 40 }} />
