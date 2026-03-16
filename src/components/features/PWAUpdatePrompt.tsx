@@ -42,7 +42,13 @@ export const PWAUpdatePrompt: React.FC = () => {
                     {needRefresh && (
                         <button 
                             style={styles.primaryButton} 
-                            onClick={() => updateServiceWorker(true)}
+                            onClick={async () => {
+                                try {
+                                    await updateServiceWorker(true);
+                                } finally {
+                                    window.location.reload();
+                                }
+                            }}
                         >
                             Reload
                         </button>
