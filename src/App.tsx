@@ -16,6 +16,7 @@ import { AuthCallback } from './pages/AuthCallback';
 import { PublicVideo } from './pages/PublicVideo';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NetworkErrorBanner } from './components/features/NetworkErrorBanner';
+import { PWAUpdatePrompt } from './components/features/PWAUpdatePrompt';
 import { supabase } from './lib/supabase';
 import './index.css';
 
@@ -85,6 +86,8 @@ function AppRoutes() {
     <MobileLayout>
       {/* Persistent offline banner — shows on top of any screen */}
       <NetworkErrorBanner />
+      {/* PWA Update Prompt */}
+      <PWAUpdatePrompt />
       {/* Applies ?ref=CODE referral param after login */}
       <ReferralHandler />
 
