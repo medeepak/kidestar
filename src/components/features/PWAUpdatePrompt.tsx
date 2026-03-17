@@ -42,12 +42,15 @@ export const PWAUpdatePrompt: React.FC = () => {
                     {needRefresh && (
                         <button 
                             style={styles.primaryButton} 
-                            onClick={async () => {
-                                try {
-                                    await updateServiceWorker(true);
-                                } finally {
+                            onClick={() => {
+                                // Fire and forget the update attempt
+                                updateServiceWorker(true).catch((e) => {
+                                    console.warn('SW update error (ignoring):', e);
+                                });
+                                // Force reload immediately after a tiny delay
+                                setTimeout(() => {
                                     window.location.reload();
-                                }
+                                }, 150);
                             }}
                         >
                             Reload
