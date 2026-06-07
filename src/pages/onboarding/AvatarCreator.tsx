@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { avatarService } from '../../services/avatarService';
 import { NotificationPrompt } from '../../components/features/NotificationPrompt';
 import { supabase } from '../../lib/supabase';
+import { detectSingleFace } from '../../utils/faceDetection';
 
 export function AvatarCreator() {
     const navigate = useNavigate();
@@ -16,6 +17,7 @@ export function AvatarCreator() {
     const [existingAvatarId, setExistingAvatarId] = useState<string | null>(null);
     const [isPhotoChanged, setIsPhotoChanged] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [isDetectingFace, setIsDetectingFace] = useState(false);
     const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -36,7 +38,9 @@ export function AvatarCreator() {
             const reader = new FileReader();
             reader.onload = (event) => {
                 const img = new Image();
-                img.onload = () => {
+                img.onload = async () => {
+                    setIsDetectingFace(true);
+
                     // Resize logic to avoid massive base64 strings crashing Edge Function limits
                     const canvas = document.createElement('canvas');
                     const MAX_WIDTH = 512;
@@ -60,6 +64,15 @@ export function AvatarCreator() {
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx?.drawImage(img, 0, 0, width, height);
+
+                    const hasFace = await detectSingleFace(canvas);
+                    setIsDetectingFace(false);
+
+                    if (!hasFace) {
+                        alert("We couldn't detect a clear face in that photo. Please try another one!");
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                        return;
+                    }
 
                     // Compress to JPEG 80%
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
@@ -236,9 +249,14 @@ export function AvatarCreator() {
                 <div
                     className={`relative w-[230px] h-[230px] rounded-[3.5rem] overflow-hidden flex items-center justify-center transition-all bg-[#A6DCFA] ${photo ? 'border-[4px] border-[#81C85A]' : 'border-[5px] border-dashed border-[#6DB8EF] cursor-pointer'}`}
                     style={{ boxShadow: photo ? '0 0 0 2px #81C85A' : 'none' }}
-                    onClick={() => { if (!photo) fileInputRef.current?.click(); }}
+                    onClick={() => { if (!photo && !isDetectingFace) fileInputRef.current?.click(); }}
                 >
-                    {photo ? (
+                    {isDetectingFace ? (
+                        <div className="flex flex-col items-center justify-center text-[#0B3770] gap-3 z-10 relative">
+                            <div className="w-10 h-10 border-4 border-[#0B3770]/20 border-t-[#0B3770] rounded-full animate-spin"></div>
+                            <span className="font-bold text-sm tracking-wide">Scanning Face...</span>
+                        </div>
+                    ) : photo ? (
                         <img src={photo} alt="Preview" className="w-full h-full object-cover z-10 relative" />
                     ) : (
                         <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#6DB8EF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera opacity-100 z-10 relative">

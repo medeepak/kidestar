@@ -193,6 +193,17 @@ export const PublicVideo: React.FC = () => {
                 </button>
             </div>
 
+            {/* ── Footer Policy Links ── */}
+            <footer style={styles.footer}>
+                <div style={styles.footerLinks}>
+                    <span style={styles.footerLink} onClick={() => navigate('/terms')}>Terms of Service</span>
+                    <span style={styles.footerLink} onClick={() => navigate('/privacy-policy')}>Privacy Policy</span>
+                </div>
+                <div style={styles.footerCopyright}>
+                    © {new Date().getFullYear()} My Rhyme Star. All rights reserved.
+                </div>
+            </footer>
+
             {/* ── Option A: Fixed floating pill — always visible, zero layout impact ── */}
             <div style={styles.floatingPill}>
                 <button style={styles.pillBtn} onClick={handleCta}>
@@ -405,5 +416,31 @@ const styles: Record<string, React.CSSProperties> = {
         cursor: 'pointer',
         boxShadow: '0 6px 0 #DF462F',
         fontFamily: "'Fredoka', sans-serif",
+    },
+    footer: {
+        marginTop: 'auto',
+        padding: '24px 16px 16px',
+        textAlign: 'center' as const,
+        display: 'flex',
+        flexDirection: 'column' as const,
+        alignItems: 'center',
+        gap: 8,
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+    },
+    footerLinks: {
+        display: 'flex',
+        gap: 16,
+        justifyContent: 'center',
+        fontSize: 12,
+        fontWeight: 500,
+    },
+    footerLink: {
+        color: 'rgba(255,255,255,0.4)',
+        textDecoration: 'underline',
+        cursor: 'pointer',
+    },
+    footerCopyright: {
+        fontSize: 11,
+        color: 'rgba(255,255,255,0.25)',
     },
 };

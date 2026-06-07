@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 export const Login: React.FC = () => {
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -62,8 +64,8 @@ export const Login: React.FC = () => {
 
                 <p style={styles.terms}>
                     By continuing, you agree to our{' '}
-                    <span style={styles.link}>Terms of Service</span> and{' '}
-                    <span style={styles.link}>Privacy Policy</span>
+                    <span style={styles.link} onClick={() => navigate('/terms')}>Terms of Service</span> and{' '}
+                    <span style={styles.link} onClick={() => navigate('/privacy-policy')}>Privacy Policy</span>
                 </p>
             </div>
         </div>

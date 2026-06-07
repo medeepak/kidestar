@@ -19,6 +19,7 @@ export const Home: React.FC = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [gemBalance, setGemBalance] = useState<number | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [policiesExpanded, setPoliciesExpanded] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [rhymeStatuses, setRhymeStatuses] = useState<Record<string, GenerationStatus | null>>({});
 
@@ -114,6 +115,35 @@ export const Home: React.FC = () => {
                         >
                             🗑️ Delete My Data
                         </button>
+                        <div style={styles.menuDivider} />
+                        <button
+                            style={styles.menuItem}
+                            onClick={() => setPoliciesExpanded(!policiesExpanded)}
+                        >
+                            📜 Policies {policiesExpanded ? '▲' : '▼'}
+                        </button>
+                        {policiesExpanded && (
+                            <div style={{ paddingLeft: 16 }}>
+                                <button
+                                    style={{ ...styles.menuItem, fontSize: 14, padding: '8px 16px' }}
+                                    onClick={() => { setMenuOpen(false); navigate('/terms'); }}
+                                >
+                                    Terms of Service
+                                </button>
+                                <button
+                                    style={{ ...styles.menuItem, fontSize: 14, padding: '8px 16px' }}
+                                    onClick={() => { setMenuOpen(false); navigate('/privacy-policy'); }}
+                                >
+                                    Privacy Policy
+                                </button>
+                                <button
+                                    style={{ ...styles.menuItem, fontSize: 14, padding: '8px 16px' }}
+                                    onClick={() => { setMenuOpen(false); navigate('/payment-policy'); }}
+                                >
+                                    Payment Policy
+                                </button>
+                            </div>
+                        )}
                         <div style={styles.menuDivider} />
                         <button
                             style={styles.logoutBtn}

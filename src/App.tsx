@@ -11,6 +11,9 @@ import { AgeGate } from './pages/onboarding/AgeGate';
 import { IntroCarousel } from './pages/onboarding/IntroCarousel';
 import { AvatarCreator } from './pages/onboarding/AvatarCreator';
 import { HowItWorks } from './pages/onboarding/HowItWorks';
+import { TermsOfService } from './pages/onboarding/TermsOfService';
+import { PrivacyPolicy } from './pages/onboarding/PrivacyPolicy';
+import { PaymentPolicy } from './pages/onboarding/PaymentPolicy';
 import { Login } from './pages/Login';
 import { AuthCallback } from './pages/AuthCallback';
 import { PublicVideo } from './pages/PublicVideo';
@@ -101,6 +104,9 @@ function AppRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/splash" element={<SplashScreen />} />
         <Route path="/age-gate" element={<AgeGate />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/payment-policy" element={<PaymentPolicy />} />
         <Route path="/intro" element={<IntroCarousel />} />
         <Route path="/tutorial" element={<HowItWorks />} />
 

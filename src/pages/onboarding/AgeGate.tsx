@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 
 export function AgeGate() {
@@ -44,7 +44,7 @@ export function AgeGate() {
                             {agreed && <span className="text-[var(--color-blue)] font-bold text-xl drop-shadow-sm">✓</span>}
                         </div>
                         <span className="text-[var(--color-text)] font-semibold text-lg leading-snug">
-                            I have read and agree to <a href="#" className="text-[var(--color-blue)] underline decoration-2 underline-offset-4">Terms of Service</a> and <a href="#" className="text-[var(--color-blue)] underline decoration-2 underline-offset-4">Privacy Policy</a>
+                            I have read and agree to <Link to="/terms" onClick={(e) => e.stopPropagation()} className="text-[var(--color-blue)] underline decoration-2 underline-offset-4">Terms of Service</Link> and <Link to="/privacy-policy" onClick={(e) => e.stopPropagation()} className="text-[var(--color-blue)] underline decoration-2 underline-offset-4">Privacy Policy</Link>
                         </span>
                     </label>
                 </div>
@@ -58,6 +58,12 @@ export function AgeGate() {
                 >
                     CONTINUE
                 </Button>
+
+                {/* Additional Policy Links directly beneath */}
+                <div className="mt-6 flex gap-4 justify-center text-sm font-medium relative z-20">
+                    <Link to="/privacy-policy" className="text-white hover:text-[var(--color-blue)] underline decoration-1 underline-offset-4 drop-shadow-md">Privacy Policy</Link>
+                    <Link to="/payment-policy" className="text-white hover:text-[var(--color-blue)] underline decoration-1 underline-offset-4 drop-shadow-md">Payment Policy</Link>
+                </div>
             </div>
         </div>
     );
