@@ -6,6 +6,7 @@ import { rhymeService, type GenerationStatus } from '../services/rhymeService';
 import { useAuth } from '../contexts/AuthContext';
 import { RHYMES_LIST } from '../data/rhymes';
 import { DeleteDataModal } from '../components/features/DeleteDataModal';
+import { trackEvent } from '../utils/analytics';
 
 
 // Use the shared catalog — shows all 7 rhymes
@@ -105,7 +106,7 @@ export const Home: React.FC = () => {
                         <div style={styles.menuDivider} />
                         <button
                             style={styles.menuItem}
-                            onClick={() => { setMenuOpen(false); navigate('/referral'); }}
+                            onClick={() => { trackEvent('home_invite_friends_click'); setMenuOpen(false); navigate('/referral'); }}
                         >
                             🌟 Invite Friends & Earn Gems
                         </button>
@@ -168,7 +169,7 @@ export const Home: React.FC = () => {
                 <div style={{ width: 40 }} />
             </header>
 
-            <div style={styles.avatarCard} onClick={() => navigate('/avatar-create')}>
+            <div style={styles.avatarCard} onClick={() => { trackEvent('home_avatar_card_click'); navigate('/avatar-create'); }}>
                 {avatar?.photo_url ? (
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                         <img
@@ -183,7 +184,7 @@ export const Home: React.FC = () => {
                         <div style={styles.avatarEmoji}>🧒</div>
                         <button
                             style={styles.createAvatarBtn}
-                            onClick={() => navigate('/avatar-create')}
+                            onClick={(e) => { e.stopPropagation(); trackEvent('home_create_avatar_click'); navigate('/avatar-create'); }}
                         >
                             Create Avatar
                         </button>
@@ -200,7 +201,7 @@ export const Home: React.FC = () => {
                     <span style={styles.gemIcon}>💎</span>
                     <span style={styles.gemCount}>{gemBalance ?? '...'}</span>
                 </div>
-                <button style={styles.buyGemsBtn} onClick={() => navigate('/gem-store')}>BUY GEMS</button>
+                <button style={styles.buyGemsBtn} onClick={() => { trackEvent('home_buy_gems_click'); navigate('/gem-store'); }}>BUY GEMS</button>
             </div>
 
             {/* Promo Banner */}
@@ -227,7 +228,10 @@ export const Home: React.FC = () => {
                         <div
                             key={rhyme.id}
                             style={styles.rhymeCard}
-                            onClick={() => navigate(`/rhyme/${rhyme.id}`)}
+                            onClick={() => {
+                                trackEvent('home_rhyme_click', { slug: rhyme.slug, status: status ?? 'not_started' });
+                                navigate(`/rhyme/${rhyme.id}`);
+                            }}
                         >
                             <div style={styles.thumbContainer}>
                                 <img

@@ -5,6 +5,7 @@ import { avatarService } from '../../services/avatarService';
 import { NotificationPrompt } from '../../components/features/NotificationPrompt';
 import { supabase } from '../../lib/supabase';
 import { detectSingleFace } from '../../utils/faceDetection';
+import { trackEvent } from '../../utils/analytics';
 
 export function AvatarCreator() {
     const navigate = useNavigate();
@@ -40,6 +41,7 @@ export function AvatarCreator() {
                 const img = new Image();
                 img.onload = async () => {
                     setIsDetectingFace(true);
+                    trackEvent('avatar_scan_face_start');
 
                     // Resize logic to avoid massive base64 strings crashing Edge Function limits
                     const canvas = document.createElement('canvas');
@@ -69,11 +71,13 @@ export function AvatarCreator() {
                     setIsDetectingFace(false);
 
                     if (!hasFace) {
+                        trackEvent('avatar_scan_face_failed');
                         alert("We couldn't detect a clear face in that photo. Please try another one!");
                         if (fileInputRef.current) fileInputRef.current.value = '';
                         return;
                     }
 
+                    trackEvent('avatar_scan_face_success');
                     // Compress to JPEG 80%
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
                     setPhoto(dataUrl);
@@ -91,10 +95,13 @@ export function AvatarCreator() {
         // If editing and photo hasn't changed, just update the name
         if (existingAvatarId && !isPhotoChanged) {
             try {
+                trackEvent('avatar_name_update_start');
                 await avatarService.updateAvatarName(existingAvatarId, childName);
+                trackEvent('avatar_name_update_success');
                 navigate('/home', { replace: true });
                 return;
             } catch (error: any) {
+                trackEvent('avatar_name_update_failed', { error: error.message || 'Unknown error' });
                 console.error('Failed to update avatar name:', error);
                 alert(`Update Failed: ${error.message}`);
                 return;
@@ -103,13 +110,16 @@ export function AvatarCreator() {
 
         // Regenerate or Create new Avatar
         setStep('generating');
+        trackEvent('avatar_generate_start', { is_edit: !!existingAvatarId });
         try {
             const avatar = await avatarService.createAvatar(childName, photo);
             if (avatar?.photo_url) {
                 setGeneratedAvatarUrl(avatar.photo_url);
             }
+            trackEvent('avatar_generate_success', { is_edit: !!existingAvatarId });
             setStep('preview');
         } catch (error: any) {
+            trackEvent('avatar_generate_failed', { error: error.message || 'Unknown error', is_edit: !!existingAvatarId });
             console.error('Failed to create avatar', error);
             alert(`Avatar Generation Failed: ${error.message}`);
             setStep('form');
@@ -150,6 +160,7 @@ export function AvatarCreator() {
                 {showNotificationPrompt && (
                     <NotificationPrompt
                         onEnable={async () => {
+                            trackEvent('notification_prompt_allow');
                             setShowNotificationPrompt(false);
                             // Get OneSignal ID and save it
                             // @ts-ignore
@@ -170,6 +181,7 @@ export function AvatarCreator() {
                             }
                         }}
                         onDismiss={() => {
+                            trackEvent('notification_prompt_dismiss');
                             setShowNotificationPrompt(false);
                             navigate('/home');
                         }}
@@ -205,7 +217,10 @@ export function AvatarCreator() {
                             variant="blue"
                             size="lg"
                             fullWidth
-                            onClick={handleGenerate}
+                            onClick={() => {
+                                trackEvent('avatar_regenerate_click');
+                                handleGenerate();
+                            }}
                         >
                             Regenerate -10 💎
                         </Button>
@@ -213,7 +228,10 @@ export function AvatarCreator() {
                             variant="secondary"
                             size="lg"
                             fullWidth
-                            onClick={() => setShowNotificationPrompt(true)}
+                            onClick={() => {
+                                trackEvent('avatar_confirm_click');
+                                setShowNotificationPrompt(true);
+                            }}
                         >
                             Confirm
                         </Button>

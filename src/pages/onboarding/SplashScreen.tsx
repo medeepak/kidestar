@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { trackEvent } from '../../utils/analytics';
 
 export function SplashScreen() {
     const navigate = useNavigate();
@@ -9,8 +10,10 @@ export function SplashScreen() {
         const timer = setTimeout(async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
+                trackEvent('splash_redirect', { target: '/home' });
                 navigate('/home', { replace: true });
             } else {
+                trackEvent('splash_redirect', { target: '/age-gate' });
                 navigate('/age-gate');
             }
         }, 2500);

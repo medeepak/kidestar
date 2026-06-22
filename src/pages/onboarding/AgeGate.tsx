@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
+import { trackEvent } from '../../utils/analytics';
 
 export function AgeGate() {
     const navigate = useNavigate();
@@ -8,6 +9,7 @@ export function AgeGate() {
 
     const handleSubmit = () => {
         if (agreed) {
+            trackEvent('age_gate_agree');
             navigate('/login');
         }
     };

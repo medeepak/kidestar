@@ -7,6 +7,7 @@ import type { GenerationRecord } from '../../services/rhymeService';
 import type { Avatar } from '../../services/avatarService';
 import { type RhymeMeta } from '../../data/rhymes';
 import { RegenerateModal } from './RegenerateModal';
+import { trackEvent } from '../../utils/analytics';
 import { LowGemAlert } from './LowGemAlert';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -59,15 +60,25 @@ export const RhymeSlide: React.FC<RhymeSlideProps> = ({
         setGenerationId(record.id);
         if (record.status === 'ready' && record.video_url) {
             setVideoUrl(record.video_url);
-            setStep('ready');
+            setStep((prev) => {
+                if (prev === 'generating') {
+                    trackEvent('rhyme_generate_success', { slug: rhyme.slug, generation_id: record.id });
+                }
+                return 'ready';
+            });
         } else if (record.status === 'failed') {
-            setStep('failed');
+            setStep((prev) => {
+                if (prev === 'generating') {
+                    trackEvent('rhyme_generate_failed', { slug: rhyme.slug, error: 'Generation webhook failed' });
+                }
+                return 'failed';
+            });
         } else if (record.status === 'pending' || record.status === 'processing') {
             setStep('generating');
         } else {
             setStep('details');
         }
-    }, []);
+    }, [rhyme.slug]);
 
     // Initialize from preloaded data
     useEffect(() => {
@@ -171,6 +182,7 @@ export const RhymeSlide: React.FC<RhymeSlideProps> = ({
 
         setStep('generating');
         setErrorMsg(null);
+        trackEvent('rhyme_generate_start', { slug: rhyme.slug });
 
         try {
             const record = await rhymeService.upsertGenerationRecord(user.id, avatar.id, rhyme.slug);
@@ -181,13 +193,16 @@ export const RhymeSlide: React.FC<RhymeSlideProps> = ({
                 console.error('Trigger error:', err);
             });
         } catch (err: unknown) {
-            setErrorMsg((err as Error).message || 'Something went wrong. Please try again.');
+            const msg = (err as Error).message || 'Something went wrong. Please try again.';
+            trackEvent('rhyme_generate_start_failed', { slug: rhyme.slug, error: msg });
+            setErrorMsg(msg);
             setStep('failed');
         }
     }, [user?.id, rhyme.slug, step, subscribeToRecord, avatar]);
 
     const handleDownload = async () => {
         if (!videoUrl) return;
+        trackEvent('rhyme_video_download', { slug: rhyme.slug, url: videoUrl });
         try {
             const res = await fetch(videoUrl);
             const blob = await res.blob();
@@ -207,6 +222,7 @@ export const RhymeSlide: React.FC<RhymeSlideProps> = ({
 
     const handleShare = async () => {
         if (!generationId) return;
+        trackEvent('rhyme_video_share', { slug: rhyme.slug, generation_id: generationId });
         const shareUrl = `${window.location.origin}/v/${generationId}`;
         const shareTitle = `🎵 ${rhyme.title} - My Rhyme Star`;
         const childName = avatar?.child_name ?? 'my child';

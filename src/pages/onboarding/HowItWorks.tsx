@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { trackEvent } from '../../utils/analytics';
 
 const STEPS = [
     {
@@ -78,8 +79,13 @@ export function HowItWorks() {
     const isLast = current === STEPS.length - 1;
 
     const goNext = () => {
-        if (isLast) navigate('/avatar-create');
-        else setCurrent(c => c + 1);
+        trackEvent('tutorial_next_click', { current_step: current });
+        if (isLast) {
+            trackEvent('tutorial_complete');
+            navigate('/avatar-create');
+        } else {
+            setCurrent(c => c + 1);
+        }
     };
 
     const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
@@ -111,7 +117,10 @@ export function HowItWorks() {
                     {current + 1} / {STEPS.length}
                 </span>
                 <button
-                    onClick={() => navigate('/avatar-create')}
+                    onClick={() => {
+                        trackEvent('tutorial_skip_click', { current_step: current });
+                        navigate('/avatar-create');
+                    }}
                     className="text-white/65 font-bold text-sm px-4 py-1.5 rounded-full border border-white/25 backdrop-blur-sm"
                     style={{ fontFamily: "'Fredoka', sans-serif" }}
                 >

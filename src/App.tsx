@@ -21,6 +21,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NetworkErrorBanner } from './components/features/NetworkErrorBanner';
 import { PWAUpdatePrompt } from './components/features/PWAUpdatePrompt';
 import { supabase } from './lib/supabase';
+import { PageTracker } from './components/features/PageTracker';
 import './index.css';
 
 // Guard: redirect to /login if user is not authenticated
@@ -93,6 +94,7 @@ function AppRoutes() {
       <PWAUpdatePrompt />
       {/* Applies ?ref=CODE referral param after login */}
       <ReferralHandler />
+      <PageTracker />
 
       <Routes>
         {/* Default redirect (catches hashes if Supabase falls back to Site URL) */}

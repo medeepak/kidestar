@@ -1,10 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
+import { trackEvent } from '../../utils/analytics';
 
 export function IntroCarousel() {
     const navigate = useNavigate();
 
     const handleComplete = () => {
+        trackEvent('intro_get_started_click');
         navigate('/tutorial');
     };
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { trackEvent } from '../utils/analytics';
 
 export const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -11,6 +12,7 @@ export const Login: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
+            trackEvent('login_google_click');
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
@@ -19,6 +21,7 @@ export const Login: React.FC = () => {
             });
             if (error) throw error;
         } catch (err: any) {
+            trackEvent('login_google_failed', { error: err.message || 'Unknown error' });
             setError(err.message || 'Failed to sign in with Google');
             setLoading(false);
         }

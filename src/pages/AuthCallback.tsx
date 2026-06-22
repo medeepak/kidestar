@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { avatarService } from '../services/avatarService';
+import { trackEvent } from '../utils/analytics';
 
 export const AuthCallback: React.FC = () => {
     const navigate = useNavigate();
@@ -10,6 +11,7 @@ export const AuthCallback: React.FC = () => {
         const handle = async () => {
             const { data: { session }, error } = await supabase.auth.getSession();
             if (session && !error) {
+                trackEvent('auth_callback_success', { user_id: session.user.id });
                 try {
                     const avatar = await avatarService.getCurrentAvatar();
                     if (avatar) {
@@ -22,6 +24,7 @@ export const AuthCallback: React.FC = () => {
                     navigate('/intro', { replace: true });
                 }
             } else {
+                trackEvent('auth_callback_failed', { error: error?.message || 'No active session found' });
                 navigate('/login', { replace: true });
             }
         };
